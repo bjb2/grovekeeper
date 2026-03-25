@@ -1,0 +1,287 @@
+Grovekeeper — spec.md
+Overview
+
+Grovekeeper is a mystical garden-building auto-battler where players cultivate enchanted plants inside a sacred grove.
+The player manages a large fixed garden grid, placing planters, beds, and ritual containers inside it, then planting magical flora within those containers.
+
+Plants automatically activate during encounters, combining their effects, evolving into spirits, and defending the grove from corruption.
+
+Core fantasy
+
+You are a Grovekeeper, caretaker of a living sacred garden whose plants awaken to fight.
+
+Core Pillars
+🌿 Container-based inventory building
+🌙 Mystical plant alchemy & evolution
+🪴 Nested placement (Garden → Planter → Plant)
+⚔️ Automatic combat resolution
+🔁 Roguelike runs with discovery
+✨ Calm but eerie magical tone
+Board Structure
+
+The player has a fixed garden grid.
+
+Example
+
+10 × 10 Garden Board
+
+This board never shrinks, but may expand later.
+
+Players place containers onto the board.
+
+Containers include
+
+Planters
+Garden beds
+Pots
+Ritual circles
+Hanging frames
+Stone basins
+
+Containers take multiple tiles.
+
+Example
+
+[ ][ ][ ][ ][ ][ ][ ][ ][ ][ ]
+[ ][ ][B][B][B][ ][ ][ ][ ][ ]
+[ ][ ][B][B][B][ ][ ][P][ ][ ]
+[ ][ ][ ][ ][ ][ ][ ][P][ ][ ]
+[ ][ ][ ][ ][ ][ ][ ][ ][ ][ ]
+
+B = Bed
+P = Planter
+
+Container System
+
+Containers are objects placed on the main board.
+
+Each container has
+
+Size (1×1, 2×2, 3×2, etc)
+Capacity (how many plants fit)
+Soil type
+Magic affinity
+Shape (affects adjacency)
+
+Example containers
+
+Container	Size	Capacity	Effect
+Clay Pot	1×1	1	cheap
+Wooden Planter	2×1	2	fast growth
+Garden Bed	3×2	6	neutral
+Rune Circle	2×2	3	magic bonus
+Stone Basin	2×2	2	water plants stronger
+Hanging Rack	1×3	3	vertical bonus
+Ancient Bed	3×3	9	rare
+Plant System
+
+Plants are placed inside containers, not on the main board.
+
+Each plant has
+
+Element
+Tags
+Trigger type
+Growth stage
+Combination rules
+
+Elements
+
+Verdant
+Bloom
+Thorn
+Rot
+Moon
+Spirit
+Sun
+Fungus
+
+Example plants
+
+Plant	Effect
+Moonleaf	heal
+Thornvine	damage
+Glowcap	mana
+Sunblossom	buff
+Rotroot	poison
+Spirit Fern	summon
+Container Rules
+
+Plants inside a container interact with
+
+Other plants in same container
+Neighbor containers
+Nearby relics
+Garden position (optional later)
+
+Possible rules
+
+Same container bonus
+Same type bonus
+Different type combo
+Ritual container effects
+
+Example
+
+3 plants in same bed → +10% power
+All Moon plants → mana regen
+Thorn next to Bloom → thorns deal bleed
+Rune circle → spirit plants stronger
+Combination  Evolution System
+
+Plants may combine into stronger forms.
+
+Combination can require
+
+Same container
+Adjacent containers
+Specific container type
+Specific relic nearby
+Specific count
+
+Examples
+
+Ingredients	Result
+Thorn + Thorn	Bramble
+Bramble + Rot	Rotbriar
+Moonleaf + Glowcap	Dreamcap
+Fern + Rune Circle	Grove Spirit
+Bloom + Sunblossom	Radiant Flower
+Rotroot + Rotroot + Rotroot	Rot Mass
+
+Advanced results may
+
+Take multiple slots
+Replace plants
+Become spirits
+Become relic-plants
+Spirits  Entities
+
+Some plants evolve into entities.
+
+Entities may
+
+Occupy multiple slots in container
+Affect nearby containers
+Trigger repeatedly
+Have cooldowns
+
+Examples
+
+Grove Spirit
+Briar Wraith
+Lunar Dryad
+Rot Abomination
+Sun Guardian
+Relics  Charms
+
+Relics are placed on the main board like containers.
+
+They do not hold plants.
+
+They give passive effects.
+
+Examples
+
+Water Orb → faster growth
+Moonstone → moon bonus
+Bone Charm → rot bonus
+Sun Idol → bloom bonus
+Whisper Totem → spirit bonus
+Compost Heap → decay synergy
+
+Relics may affect
+
+Nearby containers
+Entire board
+Specific element
+Encounter System
+
+After building the garden, combat starts.
+
+Combat is automatic.
+
+Each tick
+
+Plants trigger
+Entities act
+Relics apply effects
+Enemy acts
+
+Enemy types
+
+Other Grovekeepers
+Corrupted gardens
+Wild spirits
+Rot infestations
+Boss keepers
+
+Player HP = Grove Vitality
+
+Shop Phase
+
+After each fight
+
+Shop offers random
+
+Seeds
+Containers
+Relics
+Soil upgrades
+Rare plants
+Expansion upgrades
+
+Currency ideas
+
+Sap
+Pollen
+Spirit Dust
+Amber
+Moonwater
+Progression
+
+During run
+
+Buy better containers
+Discover recipes
+Grow stronger plants
+Build better layouts
+
+Between runs (optional)
+
+Unlock plants
+Unlock containers
+Unlock relics
+Unlock classes
+Unlock biomes
+Tone  Aesthetic
+
+Mood
+
+mystical
+calm
+eerie
+ancient nature magic
+druidic
+soft but dangerous
+
+Visual ideas
+
+watercolor textures
+glowing plants
+soft fog
+spirit particles
+carved stones
+moss
+runes
+lantern light
+Possible Future Systems
+Seasons
+Weather
+Soil fertility
+Plant aging
+Composting
+Ritual crafting
+Hybrid seeds
+Garden corruption
+Biomes
