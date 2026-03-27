@@ -109,8 +109,8 @@ export function ShopView({ offers, player, onBuy, onReroll }: Props) {
       background: '#0a0f0a',
       border: '1px solid #2d3a2d',
       borderRadius: 12,
-      padding: 20,
-      minWidth: 340,
+      padding: '16px 14px',
+      minWidth: 0,
       maxWidth: 420,
       fontFamily: 'Crimson Text, serif',
     }}>
