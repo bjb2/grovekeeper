@@ -11,7 +11,7 @@ A roguelite auto-battler where you cultivate enchanted plants and defend your sa
 There are two phases: **build** and **combat**.
 
 ### Build Phase
-Arrange containers on the 10×10 garden grid and fill them with plants from your inventory. The shop is always visible during build — spend Sap (💛) on new containers and plants, and drag purchases straight from inventory onto the board. Rerolling the shop costs `(rerolls_this_round + 1) × 10` Sap and resets each round.
+Arrange containers on the 6×6 garden grid and fill them with plants from your inventory. The shop is always visible during build — spend Sap (💛) on new containers and plants, and drag purchases straight from inventory onto the board. Rerolling the shop costs `(rerolls_this_round + 1) × 10` Sap and resets each round.
 
 When your board is ready, click **Begin Encounter**.
 
