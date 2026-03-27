@@ -1,210 +1,196 @@
 import { useState } from 'react';
-import type { SelectedTool } from './GardenBoard';
+import { useDraggable } from '@dnd-kit/core';
 import { CONTAINERS, PLANTS, ELEMENT_COLORS } from '../game/data';
-import type { Player } from '../module_bindings';
+import type { ContainerDef } from '../game/data';
+import type { Player } from '../module_bindings/types';
 
 interface Props {
   player: Player | null;
-  selectedTool: SelectedTool | null;
-  onSelectTool: (tool: SelectedTool | null) => void;
   onStartCombat: () => void;
   onResetRun: () => void;
-  disabled: boolean;
+  isDisabled: boolean;
 }
 
-export function Toolbar({ player, selectedTool, onSelectTool, onStartCombat, onResetRun, disabled }: Props) {
-  const [activeTab, setActiveTab] = useState<'containers' | 'plants'>('containers');
-
-  const isDefeated = player && player.hp <= 0;
+export function Toolbar({ player, onStartCombat, onResetRun, isDisabled }: Props) {
+  const [tab, setTab] = useState<'containers' | 'plants'>('containers');
+  const isDefeated = !!(player && player.hp <= 0);
+  const currency = player?.currency ?? 0;
 
   return (
     <div style={{
-      width: 220,
+      width: 200,
       display: 'flex',
       flexDirection: 'column',
-      gap: 12,
+      gap: 10,
       fontFamily: 'Crimson Text, serif',
     }}>
-      {/* Player stats */}
+      {/* Stats */}
       {player && (
         <div style={{
-          background: '#0f1f0f',
+          background: '#0a180a',
           border: '1px solid #2d4a2d',
           borderRadius: 10,
-          padding: 12,
+          padding: '10px 12px',
         }}>
-          <div style={{ fontFamily: 'Cinzel', color: '#86efac', fontSize: 13, marginBottom: 8 }}>
+          <div style={{ fontFamily: 'Cinzel', color: '#86efac', fontSize: 12, marginBottom: 6, letterSpacing: 1 }}>
             Grove Vitality
           </div>
           <HpBar current={player.hp} max={player.maxHp} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-            <span style={{ color: '#86a086', fontSize: 13 }}>Round {player.round}</span>
-            <span style={{ color: '#fbbf24', fontSize: 13 }}>
-              💛 {player.currency} Sap
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12 }}>
+            <span style={{ color: '#4a6a4a' }}>Round {player.round}</span>
+            <span style={{ color: '#fbbf24' }}>💛 {currency}</span>
           </div>
         </div>
       )}
 
-      {/* Actions */}
-      {!disabled && !isDefeated && (
-        <button
-          onClick={onStartCombat}
-          style={{
-            background: 'linear-gradient(135deg, #1a4a2a, #2d6b3a)',
-            border: '1px solid #4ade80',
-            borderRadius: 8,
-            color: '#4ade80',
-            fontFamily: 'Cinzel',
-            fontSize: 13,
-            padding: '10px 14px',
-            cursor: 'pointer',
-            letterSpacing: 1,
-            boxShadow: '0 0 12px #4ade8044',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 0 20px #4ade8088')}
-          onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 12px #4ade8044')}
-        >
+      {/* Action button */}
+      {!isDisabled && !isDefeated && (
+        <button onClick={onStartCombat} style={actionBtnStyle('#4ade80', '#1a4a2a', '#2d6b3a')}>
           ⚔️ Begin Encounter
         </button>
       )}
       {isDefeated && (
-        <button
-          onClick={onResetRun}
-          style={{
-            background: 'linear-gradient(135deg, #4a1a1a, #6b2d2d)',
-            border: '1px solid #f87171',
-            borderRadius: 8,
-            color: '#f87171',
-            fontFamily: 'Cinzel',
-            fontSize: 13,
-            padding: '10px 14px',
-            cursor: 'pointer',
-            letterSpacing: 1,
-          }}
-        >
+        <button onClick={onResetRun} style={actionBtnStyle('#f87171', '#4a1a1a', '#6b2d2d')}>
           🌱 New Run
         </button>
       )}
 
-      {/* Tool tabs */}
-      {!disabled && (
+      {/* Catalog */}
+      {!isDisabled && (
         <div style={{
-          background: '#0f1f0f',
+          background: '#0a180a',
           border: '1px solid #2d4a2d',
           borderRadius: 10,
           overflow: 'hidden',
+          flex: 1,
+          display: 'flex', flexDirection: 'column',
+          minHeight: 0,
         }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid #2d4a2d' }}>
-            {(['containers', 'plants'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => { setActiveTab(tab); onSelectTool(null); }}
-                style={{
-                  flex: 1, padding: '8px 4px',
-                  background: activeTab === tab ? '#1a3a1a' : 'transparent',
-                  border: 'none',
-                  color: activeTab === tab ? '#86efac' : '#4a6a4a',
-                  fontFamily: 'Cinzel',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  letterSpacing: 0.5,
-                }}
-              >
-                {tab === 'containers' ? '🪴 Containers' : '🌿 Plants'}
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #2d4a2d', flexShrink: 0 }}>
+            {(['containers', 'plants'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                flex: 1, padding: '7px 4px',
+                background: tab === t ? '#152a15' : 'transparent',
+                border: 'none', color: tab === t ? '#86efac' : '#3a5a3a',
+                fontFamily: 'Cinzel', fontSize: 10, cursor: 'pointer',
+                letterSpacing: 0.5,
+              }}>
+                {t === 'containers' ? '🪴 Pots' : '🌿 Plants'}
               </button>
             ))}
           </div>
 
-          <div style={{ maxHeight: 420, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {activeTab === 'containers' && Object.values(CONTAINERS).map(def => {
-              const canAfford = (player?.currency ?? 0) >= def.cost;
-              const isSelected = selectedTool?.kind === 'container' && selectedTool.def.type === def.type;
-              return (
-                <button
-                  key={def.type}
-                  onClick={() => onSelectTool(isSelected ? null : { kind: 'container', def })}
-                  disabled={!canAfford}
-                  style={{
-                    background: isSelected ? '#1a3a2a' : canAfford ? '#111e11' : '#0a150a',
-                    border: `1px solid ${isSelected ? '#4ade80' : canAfford ? '#2a4a2a' : '#1a2a1a'}`,
-                    borderRadius: 6,
-                    padding: '6px 8px',
-                    cursor: canAfford ? 'pointer' : 'not-allowed',
-                    textAlign: 'left',
-                    color: canAfford ? '#c4e8c4' : '#4a6a4a',
-                    transition: 'all 0.15s',
-                    boxShadow: isSelected ? '0 0 8px #4ade8044' : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, fontFamily: 'Cinzel' }}>{def.emoji} {def.label}</span>
-                    <span style={{ fontSize: 11, color: canAfford ? '#fbbf24' : '#5a4a2a' }}>
-                      {def.cost}💛
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 10, color: '#6a8a6a', marginTop: 2 }}>
-                    {def.width}×{def.height} · {def.capacity} plants · {def.soil}
-                  </div>
-                </button>
-              );
-            })}
-
-            {activeTab === 'plants' && Object.values(PLANTS).map(def => {
-              const cost = 15;
-              const canAfford = (player?.currency ?? 0) >= cost;
-              const isSelected = selectedTool?.kind === 'plant' && selectedTool.plantType === def.type;
-              const color = ELEMENT_COLORS[def.element];
-              return (
-                <button
-                  key={def.type}
-                  onClick={() => onSelectTool(isSelected ? null : { kind: 'plant', plantType: def.type })}
-                  disabled={!canAfford}
-                  style={{
-                    background: isSelected ? `${color}22` : canAfford ? '#111e11' : '#0a150a',
-                    border: `1px solid ${isSelected ? color + '66' : canAfford ? '#2a4a2a' : '#1a2a1a'}`,
-                    borderRadius: 6,
-                    padding: '6px 8px',
-                    cursor: canAfford ? 'pointer' : 'not-allowed',
-                    textAlign: 'left',
-                    color: canAfford ? '#c4e8c4' : '#4a6a4a',
-                    transition: 'all 0.15s',
-                    boxShadow: isSelected ? `0 0 8px ${color}44` : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, fontFamily: 'Cinzel' }}>{def.emoji} {def.label}</span>
-                    <span style={{ fontSize: 11, color: canAfford ? '#fbbf24' : '#5a4a2a' }}>{cost}💛</span>
-                  </div>
-                  <div style={{ fontSize: 10, marginTop: 2 }}>
-                    <span style={{ color, marginRight: 4 }}>◆ {def.element}</span>
-                    <span style={{ color: '#6a8a6a' }}>{def.basePower} power</span>
-                  </div>
-                </button>
-              );
-            })}
+          <div style={{ overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {tab === 'containers' && Object.values(CONTAINERS).map(def => (
+              <DraggableContainer key={def.type} def={def} currency={currency} />
+            ))}
+            {tab === 'plants' && Object.values(PLANTS).map(def => (
+              <DraggablePlant
+                key={def.type}
+                plantType={def.type}
+                emoji={def.emoji}
+                label={def.label}
+                element={def.element}
+                basePower={def.basePower}
+                cooldownMs={def.cooldownMs}
+                triggerType={def.triggerType}
+                rarity={def.rarity}
+                cost={15}
+                currency={currency}
+              />
+            ))}
           </div>
         </div>
       )}
 
-      {selectedTool && (
-        <button
-          onClick={() => onSelectTool(null)}
-          style={{
-            background: 'transparent',
-            border: '1px solid #4a6a4a',
-            borderRadius: 6,
-            color: '#6a8a6a',
-            padding: '6px',
-            cursor: 'pointer',
-            fontSize: 12,
-            fontFamily: 'Cinzel',
-          }}
-        >
-          ✕ Cancel
-        </button>
+      {!isDisabled && (
+        <p style={{ color: '#2a4a2a', fontSize: 9, fontFamily: 'Cinzel', textAlign: 'center', margin: 0, letterSpacing: 0.5 }}>
+          Drag items onto the board
+        </p>
       )}
+    </div>
+  );
+}
+
+// ─── Draggable Catalog Items ──────────────────────────────────────────────────
+
+function DraggableContainer({ def, currency }: { def: ContainerDef; currency: number }) {
+  const canAfford = currency >= def.cost;
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+    id: `toolbar-container:${def.type}`,
+    disabled: !canAfford,
+    data: { kind: 'toolbar-container', containerType: def.type, def },
+  });
+
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} style={{
+      background: isDragging ? '#152a15' : canAfford ? '#0f1f0f' : '#0a130a',
+      border: `1px solid ${isDragging ? '#4ade80' : canAfford ? '#1e3e1e' : '#141f14'}`,
+      borderRadius: 6, padding: '5px 7px',
+      cursor: canAfford ? 'grab' : 'not-allowed',
+      color: canAfford ? '#a0c8a0' : '#3a5a3a',
+      opacity: isDragging ? 0.4 : 1,
+      userSelect: 'none', touchAction: 'none',
+      transition: 'all 0.12s',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontFamily: 'Cinzel' }}>{def.emoji} {def.label}</span>
+        <span style={{ fontSize: 10, color: canAfford ? '#fbbf24' : '#4a3a1a' }}>{def.cost}💛</span>
+      </div>
+      <div style={{ fontSize: 9, color: '#3a5a3a', marginTop: 2 }}>
+        {def.width}×{def.height} · {def.capacity} slots · {def.soil}
+      </div>
+    </div>
+  );
+}
+
+const RARITY_COLORS: Record<string, string> = {
+  common: '#4a6a4a', uncommon: '#4ade80', rare: '#60a5fa', epic: '#a855f7', legendary: '#f59e0b',
+};
+
+function DraggablePlant({ plantType, emoji, label, element, basePower, cooldownMs, triggerType, rarity, cost, currency }: {
+  plantType: string; emoji: string; label: string; element: string;
+  basePower: number; cooldownMs: number; triggerType: string; rarity: string;
+  cost: number; currency: number;
+}) {
+  const canAfford = currency >= cost;
+  const color = ELEMENT_COLORS[element] ?? '#4ade80';
+  const rarityColor = RARITY_COLORS[rarity] ?? '#4a6a4a';
+
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+    id: `toolbar-plant:${plantType}`,
+    disabled: !canAfford,
+    data: { kind: 'toolbar-plant', plantType },
+  });
+
+  const triggerLabel = triggerType === 'periodic'
+    ? `${(cooldownMs / 1000).toFixed(1)}s`
+    : triggerType === 'on_enemy_attack' ? 'reactive'
+    : triggerType === 'passive' ? 'passive'
+    : 'start';
+
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} style={{
+      background: isDragging ? `${color}18` : canAfford ? '#0f1f0f' : '#0a130a',
+      border: `1px solid ${isDragging ? color + '66' : rarity !== 'common' ? rarityColor + '44' : canAfford ? '#1e3e1e' : '#141f14'}`,
+      borderRadius: 6, padding: '5px 7px',
+      cursor: canAfford ? 'grab' : 'not-allowed',
+      color: canAfford ? '#a0c8a0' : '#3a5a3a',
+      opacity: isDragging ? 0.4 : 1,
+      userSelect: 'none', touchAction: 'none',
+      transition: 'all 0.12s',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontFamily: 'Cinzel' }}>{emoji} {label}</span>
+        <span style={{ fontSize: 10, color: canAfford ? '#fbbf24' : '#4a3a1a' }}>{cost}💛</span>
+      </div>
+      <div style={{ fontSize: 9, marginTop: 2, display: 'flex', gap: 5 }}>
+        <span style={{ color }}>{element}</span>
+        <span style={{ color: '#3a5a3a' }}>·</span>
+        <span style={{ color: '#3a5a3a' }}>{triggerLabel}</span>
+        {basePower > 0 && <><span style={{ color: '#3a5a3a' }}>·</span><span style={{ color: '#3a5a3a' }}>{basePower}pw</span></>}
+      </div>
     </div>
   );
 }
@@ -213,22 +199,36 @@ function HpBar({ current, max }: { current: number; max: number }) {
   const pct = Math.max(0, Math.min(1, current / max));
   const color = pct > 0.5 ? '#4ade80' : pct > 0.25 ? '#fbbf24' : '#ef4444';
   return (
-    <div style={{ position: 'relative', height: 14, background: '#1a2a1a', borderRadius: 7 }}>
+    <div style={{ position: 'relative', height: 13, background: '#0f1f0f', borderRadius: 7, border: '1px solid #1a2a1a' }}>
       <div style={{
         position: 'absolute', left: 0, top: 0, bottom: 0,
         width: `${pct * 100}%`,
         background: `linear-gradient(90deg, ${color}88, ${color})`,
-        borderRadius: 7,
-        transition: 'width 0.3s, background 0.3s',
-        boxShadow: `0 0 8px ${color}66`,
+        borderRadius: 7, transition: 'width 0.3s, background 0.3s',
+        boxShadow: `0 0 6px ${color}55`,
       }} />
       <div style={{
         position: 'absolute', inset: 0, display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        fontSize: 10, color: '#fff', fontFamily: 'Cinzel',
+        fontSize: 9, color: '#fff', fontFamily: 'Cinzel',
       }}>
         {current}/{max}
       </div>
     </div>
   );
+}
+
+function actionBtnStyle(color: string, bg1: string, bg2: string): React.CSSProperties {
+  return {
+    background: `linear-gradient(135deg, ${bg1}, ${bg2})`,
+    border: `1px solid ${color}`,
+    borderRadius: 8,
+    color,
+    fontFamily: 'Cinzel',
+    fontSize: 12,
+    padding: '9px 12px',
+    cursor: 'pointer',
+    letterSpacing: 1,
+    boxShadow: `0 0 10px ${color}33`,
+  };
 }

@@ -6,12 +6,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate": "spacetime generate --lang typescript --out-dir src/module_bindings --project-path ../server"
+    "generate": "spacetime generate --lang typescript --out-dir src/module_bindings --module-path ../server"
   },
   "dependencies": {
-    "@clockworklabs/spacetimedb-sdk": "^1.1.1",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "spacetimedb": "^2.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",

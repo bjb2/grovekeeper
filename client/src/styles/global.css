@@ -54,6 +54,26 @@ html, body, #root {
   50% { opacity: 0.3; }
 }
 
+/* Plant cooldown overlay: starts full dark, lifts upward as cooldown completes */
+@keyframes cooldown-overlay {
+  from { clip-path: inset(0% 0 0% 0); }
+  to   { clip-path: inset(0% 0 100% 0); }
+}
+
+/* Stash item drop-in: items bounce in from above when added */
+@keyframes stash-drop-in {
+  from { transform: translateY(-50px) scale(0.5); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Plant activation pop: brief scale-up when a plant fires */
+@keyframes plant-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); filter: brightness(1.4); }
+  65%  { transform: scale(0.96); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
 .header {
   padding: 16px 24px 12px;
   display: flex;

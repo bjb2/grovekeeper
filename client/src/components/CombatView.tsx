@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
-import type { CombatState, CombatLogEntry } from '../module_bindings';
+import type { CombatState, CombatLogEntry, ActiveEffect } from '../module_bindings/types';
+import { EFFECT_META } from '../game/data';
+import { Tooltip } from './Tooltip';
 
 interface Props {
   combat: CombatState;
   log: CombatLogEntry[];
+  activeEffects: ActiveEffect[];
 }
 
-export function CombatView({ combat, log }: Props) {
+export function CombatView({ combat, log, activeEffects }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,6 +27,9 @@ export function CombatView({ combat, log }: Props) {
     combat.status === 'defeat' ? '#ef4444' :
     '#fbbf24';
 
+  const playerEffects = activeEffects.filter(e => e.target === 'player');
+  const enemyEffects  = activeEffects.filter(e => e.target === 'enemy');
+
   return (
     <div style={{
       background: '#0a0f0a',
@@ -35,7 +41,7 @@ export function CombatView({ combat, log }: Props) {
       fontFamily: 'Crimson Text, serif',
       display: 'flex',
       flexDirection: 'column',
-      gap: 14,
+      gap: 12,
     }}>
       <h2 style={{
         margin: 0, fontFamily: 'Cinzel', color: '#c4e8c4', fontSize: 16,
@@ -44,7 +50,7 @@ export function CombatView({ combat, log }: Props) {
         ⚔️ ENCOUNTER
       </h2>
 
-      {/* Enemy */}
+      {/* Enemy card */}
       <div style={{
         background: '#0f1a0f',
         border: '1px solid #3a2a2a',
@@ -56,7 +62,7 @@ export function CombatView({ combat, log }: Props) {
             {combat.enemyName}
           </span>
           <span style={{ color: '#f87171', fontSize: 13 }}>
-            ⚔️ {combat.enemyAttack}
+            ⚔️ {combat.enemyAttack} / {(Number(combat.enemyCooldownMs) / 1000).toFixed(1)}s
           </span>
         </div>
         <div style={{ height: 10, background: '#1a1a1a', borderRadius: 5, overflow: 'hidden' }}>
@@ -72,9 +78,71 @@ export function CombatView({ combat, log }: Props) {
         <div style={{ textAlign: 'right', fontSize: 11, color: '#9a5a5a', marginTop: 4 }}>
           {combat.enemyHp} / {combat.enemyMaxHp} HP
         </div>
+        {/* Enemy debuffs */}
+        {enemyEffects.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+            {enemyEffects.map(e => <EffectBadge key={e.effect} effect={e} />)}
+          </div>
+        )}
       </div>
 
-      {/* Status */}
+      {/* Spirit Essence */}
+      {(combat.status === 'active' || combat.spiritEssence > 0) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 10px',
+          background: '#0a0a1f',
+          border: '1px solid #4a3a6a',
+          borderRadius: 6,
+        }}>
+          <span style={{ color: '#e9d5ff', fontSize: 13 }}>✦ Spirit Essence</span>
+          <div style={{ flex: 1, display: 'flex', gap: 3 }}>
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} style={{
+                width: 14, height: 14, borderRadius: '50%',
+                background: i < combat.spiritEssence ? '#7c3aed' : '#1e1e3a',
+                boxShadow: i < combat.spiritEssence ? '0 0 6px #7c3aed' : 'none',
+                transition: 'background 0.3s',
+              }} />
+            ))}
+          </div>
+          <span style={{ color: '#7c3aed', fontSize: 12 }}>{combat.spiritEssence}/10</span>
+        </div>
+      )}
+
+      {/* Grove buffs */}
+      {playerEffects.length > 0 && (
+        <div style={{
+          padding: '6px 10px',
+          background: '#0a180a',
+          border: '1px solid #1a3a1a',
+          borderRadius: 6,
+        }}>
+          <div style={{ color: '#4a8a4a', fontSize: 11, marginBottom: 5, fontFamily: 'Cinzel' }}>
+            GROVE BUFFS
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {playerEffects.map(e => <EffectBadge key={e.effect} effect={e} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Fatigue warning */}
+      {combat.fatigueActive && (
+        <div style={{
+          textAlign: 'center', padding: '6px 10px',
+          background: '#2a0a0a',
+          border: '1px solid #ef4444',
+          borderRadius: 6,
+          color: '#ef4444',
+          fontSize: 13,
+          animation: 'pulse 1s infinite',
+        }}>
+          ⚠ Grove Wildfire — {combat.fatigueDamage} Corruption/2s
+        </div>
+      )}
+
+      {/* Status banner */}
       {combat.status !== 'active' && (
         <div style={{
           textAlign: 'center', padding: 10,
@@ -91,15 +159,12 @@ export function CombatView({ combat, log }: Props) {
         </div>
       )}
 
-      {/* Tick indicator */}
+      {/* Active indicator */}
       {combat.status === 'active' && (
         <div style={{ textAlign: 'center', color: '#4a6a4a', fontSize: 12, fontFamily: 'Cinzel' }}>
+          {combat.clockTicks >= 13 ? '🔥' : ''}
           Tick {combat.tick}
-          <span style={{
-            display: 'inline-block', marginLeft: 8,
-            animation: 'pulse 1s infinite',
-            color: '#4ade80',
-          }}>◆</span>
+          <span style={{ display: 'inline-block', marginLeft: 8, color: '#4ade80' }}>◆</span>
         </div>
       )}
 
@@ -143,22 +208,58 @@ export function CombatView({ combat, log }: Props) {
   );
 }
 
+function EffectBadge({ effect }: { effect: ActiveEffect }) {
+  const meta = EFFECT_META[effect.effect] ?? { label: effect.effect, emoji: '?', color: '#888', description: '' };
+  const badge = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 3,
+      padding: '2px 7px',
+      background: `${meta.color}18`,
+      border: `1px solid ${meta.color}55`,
+      borderRadius: 12,
+      fontSize: 12,
+      color: meta.color,
+      whiteSpace: 'nowrap',
+      cursor: 'default',
+    }}>
+      <span>{meta.emoji}</span>
+      <span>{meta.label}</span>
+      <span style={{ fontWeight: 700, marginLeft: 2 }}>×{effect.stacks}</span>
+    </div>
+  );
+  if (!meta.description) return badge;
+  return (
+    <Tooltip content={
+      <div>
+        <div style={{ fontFamily: 'Cinzel', fontSize: 11, color: meta.color, marginBottom: 4 }}>
+          {meta.emoji} {meta.label} ×{effect.stacks}
+        </div>
+        <div style={{ color: '#a0c8a0', fontSize: 12 }}>{meta.description}</div>
+      </div>
+    }>
+      {badge}
+    </Tooltip>
+  );
+}
+
 function entryColor(type: string): string {
   switch (type) {
     case 'player_attack': return '#86efac';
-    case 'enemy_attack': return '#fca5a5';
-    case 'effect': return '#c4b5fd';
-    case 'system': return '#fbbf24';
-    default: return '#86a086';
+    case 'enemy_attack':  return '#fca5a5';
+    case 'effect':        return '#c4b5fd';
+    case 'system':        return '#fbbf24';
+    case 'heal':          return '#4ade80';
+    default:              return '#86a086';
   }
 }
 
 function entryBg(type: string): string {
   switch (type) {
     case 'player_attack': return '#0a1f0a';
-    case 'enemy_attack': return '#1f0a0a';
-    case 'effect': return '#150a1f';
-    case 'system': return '#1f1a0a';
-    default: return 'transparent';
+    case 'enemy_attack':  return '#1f0a0a';
+    case 'effect':        return '#150a1f';
+    case 'system':        return '#1f1a0a';
+    case 'heal':          return '#071a07';
+    default:              return 'transparent';
   }
 }

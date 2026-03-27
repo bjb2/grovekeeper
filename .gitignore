@@ -3,3 +3,10 @@ client/dist/
 client/node_modules/
 .env
 target/
+reference.txt
+mechanics.txt
+MECHANICS_OVERHAUL.md
+containers.md.txt
+image_integration.txt
+plants.md.txt
+spec.md.txt
