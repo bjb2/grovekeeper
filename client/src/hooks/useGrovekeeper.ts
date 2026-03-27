@@ -70,6 +70,10 @@ export function useGrovekeeper() {
     client.removeContainer(id);
   }, []);
 
+  const rotateContainer = useCallback((id: bigint) => {
+    client.rotateContainer(id);
+  }, []);
+
   const placePlant = useCallback((plantType: string, boardX: number, boardY: number) => {
     client.placePlant(plantType, boardX, boardY);
   }, []);
@@ -100,7 +104,7 @@ export function useGrovekeeper() {
   return {
     connected, error, player,
     containers, plants, combat, combatLog, shopOffers, inventory, activeEffects,
-    placeContainer, moveContainer, removeContainer, placePlant, removePlant,
+    placeContainer, moveContainer, removeContainer, rotateContainer, placePlant, removePlant,
     placeFromInventory, placePlantFromInventory, movePlant,
     startCombat, returnToGrove, rerollShop, buyItem, finishShopping, resetRun,
   };

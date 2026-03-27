@@ -56,14 +56,17 @@ interface Props {
   onRemoveContainer: (id: bigint) => void;
   onRemovePlant: (id: bigint) => void;
   onRotateContainer: (id: bigint) => void;
-  onRotatePlant: (id: bigint) => void;
+  onRotatePlant?: (id: bigint) => void;
   isDisabled: boolean;
   liftedPlantId: bigint | null;
   isCombatActive: boolean;
   dragRotated?: boolean;
+  isMobile?: boolean;
 }
 
-export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePlant, onRotateContainer, onRotatePlant, isDisabled, liftedPlantId, isCombatActive, dragRotated = false }: Props) {
+const noop = () => {};
+
+export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePlant, onRotateContainer, onRotatePlant = noop, isDisabled, liftedPlantId, isCombatActive, dragRotated = false, isMobile = false }: Props) {
   const { active, over } = useDndContext();
 
   const dragData = active?.data.current as DragData | undefined;
@@ -180,6 +183,7 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
                 onRemoveContainer={onRemoveContainer}
                 onRemovePlant={onRemovePlant}
                 onRotateContainer={onRotateContainer}
+                isMobile={isMobile}
               />
             );
           })
@@ -238,6 +242,7 @@ function BoardCell({
   x, y, isInContainer, isOrigin, container, allPlants, coveredBoardCells, occupiedByPlant,
   isDisabled, isDraggingContainer, isDraggingAnyPlant,
   liftedPlantId, isCombatActive, onRemoveContainer, onRemovePlant, onRotateContainer,
+  isMobile,
 }: {
   x: number; y: number;
   isInContainer: boolean; isOrigin: boolean;
@@ -251,6 +256,7 @@ function BoardCell({
   onRemoveContainer: (id: bigint) => void;
   onRemovePlant: (id: bigint) => void;
   onRotateContainer: (id: bigint) => void;
+  isMobile: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `cell:${x}:${y}`,
@@ -303,6 +309,7 @@ function BoardCell({
           onRemovePlant={onRemovePlant}
           onRemoveContainer={onRemoveContainer}
           onRotateContainer={onRotateContainer}
+          isMobile={isMobile}
         />
       )}
     </div>
@@ -311,7 +318,7 @@ function BoardCell({
 
 // ─── Container Content ────────────────────────────────────────────────────────
 
-function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByPlant, isDisabled, liftedPlantId, isCombatActive, onRemovePlant, onRemoveContainer, onRotateContainer }: {
+function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByPlant, isDisabled, liftedPlantId, isCombatActive, onRemovePlant, onRemoveContainer, onRotateContainer, isMobile }: {
   container: ContainerOnBoard;
   allPlants: PlantInContainer[];
   coveredBoardCells: Set<string>;
@@ -322,6 +329,7 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
   onRemovePlant: (id: bigint) => void;
   onRemoveContainer: (id: bigint) => void;
   onRotateContainer: (id: bigint) => void;
+  isMobile: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const def = CONTAINERS[container.containerType];
@@ -391,19 +399,35 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
         }}
       />
 
-      {/* Hover buttons — remove + rotate hint */}
-      {!isDisabled && hovered && (
+      {/* Hover buttons — remove + rotate */}
+      {!isDisabled && (hovered || isMobile) && (
         <>
           {container.width !== container.height && (
-            <div style={{
-              position: 'absolute', top: 0, left: 0,
-              background: '#050a1a99',
-              borderRadius: '3px 0 4px 0',
-              color: '#4ade8077',
-              fontSize: 7, lineHeight: 1, padding: '2px 4px',
-              zIndex: 10, pointerEvents: 'none',
-              whiteSpace: 'nowrap',
-            }}>right-click to rotate</div>
+            isMobile ? (
+              <button
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); onRotateContainer(container.id); }}
+                title="Rotate container"
+                style={{
+                  position: 'absolute', top: 0, left: 0,
+                  background: '#050a1a99', border: '1px solid #4ade8033',
+                  borderRadius: '3px 0 4px 0',
+                  color: '#4ade80bb', cursor: 'pointer',
+                  fontSize: 9, lineHeight: 1, padding: '3px 5px',
+                  zIndex: 10,
+                }}
+              >↻</button>
+            ) : (
+              <div style={{
+                position: 'absolute', top: 0, left: 0,
+                background: '#050a1a99',
+                borderRadius: '3px 0 4px 0',
+                color: '#4ade8077',
+                fontSize: 7, lineHeight: 1, padding: '2px 4px',
+                zIndex: 10, pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}>right-click to rotate</div>
+            )
           )}
           <button
             onPointerDown={e => e.stopPropagation()}
@@ -414,7 +438,7 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
               background: '#1a0505', border: '1px solid #ef444433',
               borderRadius: '0 3px 0 4px',
               color: '#ef4444bb', cursor: 'pointer',
-              fontSize: 8, lineHeight: 1, padding: '2px 4px',
+              fontSize: 8, lineHeight: 1, padding: isMobile ? '3px 5px' : '2px 4px',
               zIndex: 10,
             }}
           >✕</button>

@@ -44,6 +44,7 @@ import PlacePlantReducer from "./place_plant_reducer";
 import PlacePlantFromInventoryReducer from "./place_plant_from_inventory_reducer";
 import RemoveContainerReducer from "./remove_container_reducer";
 import RemovePlantReducer from "./remove_plant_reducer";
+import RotateContainerReducer from "./rotate_container_reducer";
 import RerollShopReducer from "./reroll_shop_reducer";
 import ResetRunReducer from "./reset_run_reducer";
 import ReturnToGroveReducer from "./return_to_grove_reducer";
@@ -152,6 +153,7 @@ const reducersSchema = __reducers(
   __reducerSchema("place_plant_from_inventory", PlacePlantFromInventoryReducer),
   __reducerSchema("remove_container", RemoveContainerReducer),
   __reducerSchema("remove_plant", RemovePlantReducer),
+  __reducerSchema("rotate_container", RotateContainerReducer),
   __reducerSchema("reroll_shop", RerollShopReducer),
   __reducerSchema("reset_run", ResetRunReducer),
   __reducerSchema("return_to_grove", ReturnToGroveReducer),

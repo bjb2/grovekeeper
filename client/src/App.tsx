@@ -6,6 +6,7 @@ import {
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { useGrovekeeper } from './hooks/useGrovekeeper';
+import { useIsMobile } from './hooks/useIsMobile';
 import { GardenBoard } from './components/GardenBoard';
 import type { DragData } from './components/GardenBoard';
 import { StorageShelf } from './components/StorageShelf';
@@ -32,7 +33,7 @@ export default function App() {
   const {
     connected, error, player, containers, plants,
     combat, combatLog, shopOffers, inventory, activeEffects,
-    moveContainer, removeContainer, removePlant,
+    moveContainer, removeContainer, rotateContainer, removePlant,
     placeFromInventory, placePlantFromInventory, movePlant,
     startCombat, returnToGrove, rerollShop, buyItem, resetRun,
   } = useGrovekeeper();
@@ -40,6 +41,8 @@ export default function App() {
   const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
   const [liftedPlantId, setLiftedPlantId] = useState<bigint | null>(null);
   const stashRef = useRef<StashHandle>(null);
+
+  const isMobile = useIsMobile();
 
   const phase = player?.phase ?? 'build';
   const isBuild = phase === 'build';
@@ -137,41 +140,45 @@ export default function App() {
     }}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '8px 20px',
+        display: 'flex', alignItems: 'center',
+        gap: isMobile ? 8 : 16,
+        padding: isMobile ? '6px 10px' : '8px 20px',
         background: '#070f07',
         borderBottom: '1px solid #1a2e1a',
         boxShadow: '0 2px 12px #00000088',
         flexShrink: 0,
         minWidth: 0,
+        flexWrap: isMobile ? 'wrap' : 'nowrap',
       }}>
         {/* Logo */}
         <div style={{ flexShrink: 0 }}>
-          <div style={{ fontFamily: 'Cinzel', color: '#4ade80', fontSize: 16, letterSpacing: 3 }}>
-            🌿 GROVEKEEPER
+          <div style={{ fontFamily: 'Cinzel', color: '#4ade80', fontSize: isMobile ? 12 : 16, letterSpacing: isMobile ? 1 : 3 }}>
+            🌿 {isMobile ? 'GK' : 'GROVEKEEPER'}
           </div>
         </div>
 
         {player && (
           <>
-            <div style={{ width: 1, height: 32, background: '#1a2e1a', flexShrink: 0 }} />
+            {!isMobile && <div style={{ width: 1, height: 32, background: '#1a2e1a', flexShrink: 0 }} />}
 
             {/* HP bar */}
-            <div style={{ flexShrink: 0, width: 140 }}>
-              <div style={{ fontSize: 9, color: '#4a6a4a', fontFamily: 'Cinzel', letterSpacing: 1, marginBottom: 3 }}>
-                GROVE HP
-              </div>
+            <div style={{ flexShrink: 0, width: isMobile ? 100 : 140 }}>
+              {!isMobile && (
+                <div style={{ fontSize: 9, color: '#4a6a4a', fontFamily: 'Cinzel', letterSpacing: 1, marginBottom: 3 }}>
+                  GROVE HP
+                </div>
+              )}
               <HpBar current={player.hp} max={player.maxHp} />
             </div>
 
             {/* Stats */}
-            <div style={{ display: 'flex', gap: 14, flexShrink: 0, fontSize: 12 }}>
-              <span style={{ color: '#4a6a4a' }}>Round <span style={{ color: '#86efac' }}>{player.round}</span></span>
+            <div style={{ display: 'flex', gap: isMobile ? 8 : 14, flexShrink: 0, fontSize: isMobile ? 11 : 12 }}>
+              <span style={{ color: '#4a6a4a' }}>R<span style={{ color: '#86efac' }}>{player.round}</span></span>
               <span style={{ color: '#fbbf24', fontFamily: 'Cinzel' }}>💛 {player.currency}</span>
             </div>
 
-            {/* Active player effects — shown throughout combat */}
-            {playerEffects.length > 0 && (
+            {/* Active player effects — hide on mobile (shown in combat view) */}
+            {!isMobile && playerEffects.length > 0 && (
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                 {playerEffects.map(e => (
                   <EffectBadge key={e.effect} effect={e} />
@@ -186,7 +193,7 @@ export default function App() {
 
         {/* Phase + Action */}
         {player && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0 }}>
             {isBuild && (
               <button
                 onClick={startCombat}
@@ -194,13 +201,13 @@ export default function App() {
                   background: 'linear-gradient(135deg, #1a4a2a, #2d6b3a)',
                   border: '1px solid #4ade80',
                   borderRadius: 8, color: '#4ade80',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1, boxShadow: '0 0 10px #4ade8033',
                   whiteSpace: 'nowrap',
                 }}
               >
-                ⚔️ Begin Encounter
+                ⚔️ {isMobile ? 'Fight' : 'Begin Encounter'}
               </button>
             )}
             {combatVictory && (
@@ -210,14 +217,14 @@ export default function App() {
                   background: 'linear-gradient(135deg, #1a4a2a, #2d6b3a)',
                   border: '1px solid #4ade80',
                   borderRadius: 8, color: '#4ade80',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1, boxShadow: '0 0 10px #4ade8033',
                   whiteSpace: 'nowrap',
                   animation: 'pulse 1.5s infinite',
                 }}
               >
-                🌿 Return to Grove
+                🌿 {isMobile ? 'Grove' : 'Return to Grove'}
               </button>
             )}
             {combatDefeat && (
@@ -227,19 +234,19 @@ export default function App() {
                   background: 'linear-gradient(135deg, #4a1a1a, #6b2d2d)',
                   border: '1px solid #f87171',
                   borderRadius: 8, color: '#f87171',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1,
                 }}
               >
-                🌱 New Run
+                🌱 {isMobile ? 'Retry' : 'New Run'}
               </button>
             )}
             <div style={{
               background: isBuild ? '#0f2a0f' : '#2a1a0a',
               border: `1px solid ${isBuild ? '#2d4a2d' : '#6b3a0a'}`,
-              borderRadius: 20, padding: '4px 12px',
-              fontFamily: 'Cinzel', fontSize: 11,
+              borderRadius: 20, padding: isMobile ? '3px 8px' : '4px 12px',
+              fontFamily: 'Cinzel', fontSize: isMobile ? 9 : 11,
               color: isBuild ? '#4ade80' : '#f97316',
               letterSpacing: 1,
             }}>
@@ -284,38 +291,52 @@ export default function App() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{
+            flex: 1, display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            minHeight: 0,
+            overflow: isMobile ? 'auto' : 'hidden',
+            WebkitOverflowScrolling: 'touch',
+          }}>
 
             {/* Center: Board (scrollable) + Stash (always visible) */}
             <main style={{
-              flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
+              flex: isMobile ? 'none' : 1,
+              display: 'flex', flexDirection: 'column',
+              minHeight: 0, minWidth: 0,
             }}>
               <div style={{
-                flex: 1, overflowY: 'auto',
+                flex: isMobile ? 'none' : 1,
+                overflowX: isMobile ? 'auto' : 'hidden',
+                overflowY: isMobile ? 'hidden' : 'auto',
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '16px 16px 8px',
+                padding: isMobile ? '10px 8px 6px' : '16px 16px 8px',
               }}>
                 <GardenBoard
                   containers={containers}
                   plants={plants}
                   onRemoveContainer={removeContainer}
                   onRemovePlant={removePlant}
+                  onRotateContainer={rotateContainer}
                   isDisabled={!isBuild}
                   liftedPlantId={liftedPlantId}
                   isCombatActive={isCombat}
+                  isMobile={isMobile}
                 />
               </div>
               <div style={{ flexShrink: 0, width: '100%' }}>
-                <StorageShelf ref={stashRef} inventory={inventory} isDisabled={!isBuild} />
+                <StorageShelf ref={stashRef} inventory={inventory} isDisabled={!isBuild} isMobile={isMobile} />
               </div>
             </main>
 
-            {/* Right: Shop or Combat */}
+            {/* Right (desktop) / Below (mobile): Shop or Combat */}
             <aside style={{
-              width: 360, flexShrink: 0,
-              padding: '14px 16px',
-              borderLeft: '1px solid #1a2e1a',
-              overflowY: 'auto',
+              width: isMobile ? '100%' : 360,
+              flexShrink: 0,
+              padding: isMobile ? '10px 10px 20px' : '14px 16px',
+              borderLeft: isMobile ? 'none' : '1px solid #1a2e1a',
+              borderTop: isMobile ? '1px solid #1a2e1a' : 'none',
+              overflowY: isMobile ? 'visible' : 'auto',
               background: '#060e06',
             }}>
               {isCombat && combat && (

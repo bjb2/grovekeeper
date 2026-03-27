@@ -193,6 +193,10 @@ export class GroveKeeperClient {
   removePlant(plantId: bigint) {
     this.conn?.reducers.removePlant({ plantId });
   }
+  rotateContainer(containerId: bigint) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.conn?.reducers as any)?.rotateContainer({ containerId });
+  }
   placeFromInventory(inventoryId: bigint, x: number, y: number) {
     this.conn?.reducers.placeFromInventory({ inventoryId, x, y });
   }

@@ -7,7 +7,9 @@ import { PlantTooltipContent, ContainerTooltipContent } from './ShopView';
 
 const CELL = 44;
 export const STASH_W = 560;
+const STASH_W_MOBILE = 340;
 export const STASH_H = 200;
+const STASH_H_MOBILE = 140;
 const PADDING = 14;
 
 interface ItemPos { x: number; y: number; rot: number; w: number; h: number; }
@@ -19,12 +21,16 @@ export interface StashHandle {
 interface Props {
   inventory: Inventory[];
   isDisabled: boolean;
+  isMobile?: boolean;
 }
 
 export const StorageShelf = forwardRef<StashHandle, Props>(function StorageShelf(
-  { inventory, isDisabled },
+  { inventory, isDisabled, isMobile = false },
   ref,
 ) {
+  const stashW = isMobile ? Math.min(STASH_W_MOBILE, window.innerWidth - 20) : STASH_W;
+  const stashH = isMobile ? STASH_H_MOBILE : STASH_H;
+
   const [positions, setPositions] = useState<Record<string, ItemPos>>({});
   const seenRef = useRef<Set<string>>(new Set());
 
@@ -33,8 +39,8 @@ export const StorageShelf = forwardRef<StashHandle, Props>(function StorageShelf
       setPositions(prev => {
         const pos = prev[id];
         if (!pos) return prev;
-        const newX = Math.max(PADDING, Math.min(STASH_W - PADDING - pos.w, pos.x + dx));
-        const newY = Math.max(PADDING, Math.min(STASH_H - PADDING - pos.h, pos.y + dy));
+        const newX = Math.max(PADDING, Math.min(stashW - PADDING - pos.w, pos.x + dx));
+        const newY = Math.max(PADDING, Math.min(stashH - PADDING - pos.h, pos.y + dy));
         return { ...prev, [id]: { ...pos, x: newX, y: newY } };
       });
     },
@@ -54,8 +60,8 @@ export const StorageShelf = forwardRef<StashHandle, Props>(function StorageShelf
           : PLANTS[item.itemType];
         const w = ((def as any)?.width ?? 1) * CELL;
         const h = ((def as any)?.height ?? 1) * CELL;
-        const maxX = Math.max(STASH_W - PADDING * 2 - w, 0);
-        const maxY = Math.max(STASH_H - PADDING * 2 - h, 0);
+        const maxX = Math.max(stashW - PADDING * 2 - w, 0);
+        const maxY = Math.max(stashH - PADDING * 2 - h, 0);
         newPositions[key] = {
           x: PADDING + Math.random() * maxX,
           y: PADDING + Math.random() * maxY,
@@ -94,16 +100,16 @@ export const StorageShelf = forwardRef<StashHandle, Props>(function StorageShelf
 
   return (
     // Droppable ref on the outer wrapper — covers label + crate for a larger drop zone
-    <div ref={setDropRef} style={{ position: 'relative', flexShrink: 0 }}>
+    <div ref={setDropRef} style={{ position: 'relative', flexShrink: 0, padding: isMobile ? '0 8px' : 0 }}>
       {/* Label */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, paddingLeft: 4 }}>
-        <span style={{ fontFamily: 'Cinzel', fontSize: 11, color: isReceivingFromBoard ? '#4ade80' : '#4a6a4a', letterSpacing: 2, textTransform: 'uppercase', transition: 'color 0.15s' }}>
+        <span style={{ fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 11, color: isReceivingFromBoard ? '#4ade80' : '#4a6a4a', letterSpacing: 2, textTransform: 'uppercase', transition: 'color 0.15s' }}>
           🎒 Stash
         </span>
         <span style={{ fontSize: 10, color: '#3a5a3a' }}>
           {isReceivingFromBoard
             ? 'drop here to stash'
-            : `${inventory.length} item${inventory.length !== 1 ? 's' : ''} — drag to board to place`}
+            : `${inventory.length} item${inventory.length !== 1 ? 's' : ''}`}
         </span>
       </div>
 
@@ -111,8 +117,9 @@ export const StorageShelf = forwardRef<StashHandle, Props>(function StorageShelf
       <div
         style={{
           position: 'relative',
-          width: STASH_W,
-          height: STASH_H,
+          width: isMobile ? '100%' : STASH_W,
+          maxWidth: stashW,
+          height: stashH,
           background: isOver
             ? 'radial-gradient(ellipse at center, #1a3a1a 0%, #0d1f0d 60%, #080f08 100%)'
             : 'radial-gradient(ellipse at center, #111a11 0%, #0a120a 60%, #060e06 100%)',
