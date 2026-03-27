@@ -8,16 +8,22 @@ A roguelite auto-battler where you cultivate enchanted plants and defend your sa
 
 ## Gameplay Loop
 
+There are two phases: **build** and **combat**.
+
 ### Build Phase
-Place containers on the 10×10 garden grid. Fill them with plants from your inventory or the shop. Position and rotate pieces to maximize soil synergies and container bonuses.
+Arrange containers on the 10×10 garden grid and fill them with plants from your inventory. The shop is always visible during build — spend Sap (💛) on new containers and plants, and drag purchases straight from inventory onto the board. Rerolling the shop costs `(rerolls_this_round + 1) × 10` Sap and resets each round.
+
+When your board is ready, click **Begin Encounter**.
 
 ### Combat Phase
-Click **Begin Encounter**. Plants fire automatically on their own cooldown timers. Enemy plants do the same on the right side. Watch the combat log and your HP bar.
+Both sides fight automatically. Your plants fire on their own cooldown timers; the enemy's plants do the same on their side of the board. A clock ticks every 2 seconds, driving Spore Rot damage and Regrowth healing. If the fight drags past ~26 seconds, **fatigue** sets in and deals escalating damage to both sides.
 
-### Shop Phase
-Spend Sap (💛) on new plants and containers between rounds. Reroll the shop for a cost that scales with use. Return to your grove when ready for the next encounter.
+Combat ends when one side reaches 0 HP:
 
-Each run gets harder — enemies grow stronger each round and fatigue damage sets in on long fights.
+- **Victory** — click **Return to Grove**. You advance to the next round, the shop refreshes with a wider item pool, and the reroll counter resets.
+- **Defeat** — click **New Run**. Everything resets to round 1.
+
+Enemies scale each round. The shop pool also expands — more container and plant options unlock at rounds 2 and 4.
 
 ---
 
