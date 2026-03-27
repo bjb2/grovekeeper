@@ -1,17 +1,62 @@
 # Grovekeeper
 
-A mystical garden-building auto-battler. Cultivate enchanted plants, place magical containers, and defend your sacred grove from corruption.
+A roguelite auto-battler where you cultivate enchanted plants and defend your sacred grove from corruption. Arrange plants in containers on a garden board — then watch them fight for you.
 
-## Stack
-
-- **Frontend**: Vite + React + TypeScript → deployed on Vercel
-- **Backend**: SpacetimeDB (Rust module) → deployed on SpacetimeDB Cloud
+**Stack:** SpacetimeDB (Rust) · Vite · React · TypeScript
 
 ---
 
-## Quick Start
+## Gameplay Loop
 
-### 1. Deploy the SpacetimeDB Module
+### Build Phase
+Place containers on the 10×10 garden grid. Fill them with plants from your inventory or the shop. Position and rotate pieces to maximize soil synergies and container bonuses.
+
+### Combat Phase
+Click **Begin Encounter**. Plants fire automatically on their own cooldown timers. Enemy plants do the same on the right side. Watch the combat log and your HP bar.
+
+### Shop Phase
+Spend Sap (💛) on new plants and containers between rounds. Reroll the shop for a cost that scales with use. Return to your grove when ready for the next encounter.
+
+Each run gets harder — enemies grow stronger each round and fatigue damage sets in on long fights.
+
+---
+
+## Plants & Elements
+
+| Element | Plants | Playstyle |
+|---------|--------|-----------|
+| 🌿 Verdant | Fern, Clover, Mosscap | Balanced, sustain-focused |
+| 🌵 Thorn | Cactus, Briar, Needleleaf | High single-target damage |
+| 🍄 Fungus | Sporecap, Rotshroom, Gloomcap | Damage-over-time via Spore Rot |
+| 🌙 Moon | Lunabloom, Duskpetal | Healing and regrowth |
+| ✨ Spirit | Runebloom, Soulvine | Spirit damage, strongest in rune containers |
+| ☀️ Sun | Sunleaf, Emberpetal | Buffs and surges |
+| 🖤 Rot | Witherbloom, Plaguestem | Wither debuffs, spreading poison |
+| 🌸 Bloom | Rosewick, Blushcap | Bloom healing bursts |
+
+Plants deal damage, apply status effects (Spore Rot, Wither, Root Chill, Entangle), or buff your grove (Regrowth, Bark Shield, Bloom, Verdant Surge, Thorns).
+
+---
+
+## Containers & Soil
+
+Each container has a **soil type** and **affinity**. Plants whose element matches the soil get **+2 power**. Some containers add bonus effects:
+
+| Container | Bonus |
+|-----------|-------|
+| Garden Bed | Full capacity → +10% power to all plants inside |
+| Stone Basin | Fungus plants deal 50% more damage |
+| Rune Circle | Spirit plants deal +4 damage |
+| Dry Thorn Box | Thorn plants deal +1 damage |
+| Lunar Planter | Moon affinity soil |
+| Spirit Shrine | Spirit affinity soil |
+| Rot Pit | Rot affinity soil |
+
+---
+
+## Running Locally
+
+### 1. Publish the server module
 
 Install the SpacetimeDB CLI:
 ```bash
@@ -25,62 +70,42 @@ cd server
 spacetime publish grovekeeper --server maincloud.spacetimedb.com
 ```
 
-### 2. Run the Client Locally
+### 2. Run the client
 
 ```bash
 cd client
-cp .env.example .env
-# Edit .env — set VITE_SPACETIME_MODULE to your published module name
+cp .env.example .env        # set VITE_SPACETIME_MODULE to your module name
 npm install
 npm run dev
 ```
 
-### 3. Deploy to Vercel
+### 3. Type-check / build
 
 ```bash
-# From repo root
-vercel deploy
-```
+# Type check server
+cd server && cargo check
 
-Set environment variables in Vercel dashboard:
-- `VITE_SPACETIME_HOST` = `wss://maincloud.spacetimedb.com`
-- `VITE_SPACETIME_MODULE` = `grovekeeper` (or your module name)
+# Type check client
+cd client && npx tsc --noEmit
 
-### 4. Regenerate TypeScript Bindings (after server changes)
-
-```bash
-cd client
-npm run generate
+# Production build
+cd client && npm run build
 ```
 
 ---
 
-## Gameplay
+## Deploying to Vercel
 
-1. **Build Phase** — Select containers from the toolbar and place them on the 10×10 garden grid. Then select plants and click empty slots inside containers.
-2. **Combat Phase** — Click "Begin Encounter". Your grove automatically attacks each tick. Watch the combat log.
-3. **Shop Phase** — After victory, spend Sap on new containers and plants, then return to your grove.
+```bash
+vercel deploy
+```
 
-### Elements
-| Element | Color | Notes |
-|---------|-------|-------|
-| 🌿 Verdant | Green | Basic |
-| 🌵 Thorn | Light green | High damage; bonus in Dry Thorn Box |
-| 🍄 Fungus | Orange | 50% bonus in Stone Basin |
-| 🌙 Moon | Blue | Mana regen in Lunar Planter |
-| ✨ Spirit | Purple | Strongest in Rune Circle / Spirit Shrine |
-| ☀️ Sun | Gold | Buffs neighbors in Sun Bed |
-| 🖤 Rot | Dark purple | Spreads poison in Rot Pit |
-| 🌸 Bloom | Pink | |
+Set these environment variables in the Vercel dashboard:
 
-### Soil Synergies
-Each container has a soil type. Plants whose element matches the soil get +2 power.
-
-### Container Bonuses
-- **Garden Bed** — Full capacity = +10% power for all plants inside
-- **Stone Basin** — Fungus plants deal 50% more damage
-- **Rune Circle** — Spirit plants deal +4 damage
-- **Dry Thorn Box** — Thorn plants deal +1 damage
+| Variable | Value |
+|----------|-------|
+| `VITE_SPACETIME_HOST` | `wss://maincloud.spacetimedb.com` |
+| `VITE_SPACETIME_MODULE` | `grovekeeper` (or your module name) |
 
 ---
 
@@ -88,16 +113,32 @@ Each container has a soil type. Plants whose element matches the soil get +2 pow
 
 ```
 grovekeeper/
-  server/          # SpacetimeDB Rust module
-    src/lib.rs     # Tables + reducers
-    Cargo.toml
-  client/          # Vite + React frontend
-    src/
-      module_bindings/  # SpacetimeDB TypeScript bindings
-      game/data.ts      # Game constants (plants, containers)
-      hooks/            # useGrovekeeper React hook
-      components/       # GardenBoard, Toolbar, CombatView, ShopView
-      styles/
-    .env.example
-  vercel.json      # Vercel deployment config
+├── server/
+│   ├── src/lib.rs        # All game logic — tables, reducers, combat engine
+│   └── Cargo.toml
+└── client/
+    └── src/
+        ├── App.tsx                    # Root layout, drag-and-drop, phase logic
+        ├── game/data.ts               # Static data — all plants, containers, effects
+        ├── hooks/
+        │   ├── useGrovekeeper.ts      # SpacetimeDB state + reducer callbacks
+        │   └── useSound.ts            # Web Audio API — music + SFX
+        ├── components/
+        │   ├── GardenBoard.tsx        # Player board with drag-drop
+        │   ├── EnemyBoard.tsx         # Enemy board (read-only during combat)
+        │   ├── ShopView.tsx           # Shop offers, reroll, tooltips
+        │   ├── StorageShelf.tsx       # Inventory stash
+        │   ├── CombatView.tsx         # Enemy HP, effects, combat log
+        │   └── Tooltip.tsx            # Portal-based hover tooltips
+        └── module_bindings/           # Hand-maintained SpacetimeDB TS bindings
 ```
+
+---
+
+## Tech Notes
+
+- **SpacetimeDB** handles all authoritative game state — no REST API, no polling. The client subscribes to table changes over WebSocket and reacts in real time.
+- **Combat** is fully server-side: plant triggers, enemy attacks, and clock ticks are scheduled as one-shot `ScheduleAt::Time` reducers that chain themselves.
+- **Drag and drop** uses `@dnd-kit`. Containers support rotation (R key or right-click during drag).
+- **Module bindings** in `client/src/module_bindings/` are hand-maintained — do not regenerate with the CLI.
+- **Sound** is synthesized at runtime with the Web Audio API (no audio assets). Music and SFX have independent mute controls in the header.
