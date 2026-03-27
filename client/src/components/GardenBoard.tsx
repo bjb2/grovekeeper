@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, useId } from 'react';
 import { useDroppable, useDraggable, useDndContext } from '@dnd-kit/core';
 import type { ContainerOnBoard, PlantInContainer } from '../module_bindings/types';
 import { CONTAINERS, PLANTS, SOIL_COLORS, ELEMENT_COLORS, ELEMENT_GLOW } from '../game/data';
@@ -6,8 +6,38 @@ import type { ContainerDef } from '../game/data';
 import { Tooltip } from './Tooltip';
 import { PlantTooltipContent } from './ShopView';
 
-const GRID_SIZE = 10;
-const CELL_SIZE = 52;
+const GRID_SIZE = 6;
+
+// ─── Floating combat numbers ──────────────────────────────────────────────────
+
+interface FloatNum {
+  id: number;
+  text: string;
+  color: string;
+  x: number; // px offset from plant center
+}
+
+let _floatId = 0;
+
+function effectDisplay(effect: string, value: number): { text: string; color: string } | null {
+  if (!effect || effect === 'none') return null;
+  switch (effect) {
+    case 'damage':        return { text: `−${value}`,      color: '#f87171' };
+    case 'spirit_damage': return { text: `−${value}✦`,     color: '#c4b5fd' };
+    case 'heal':          return { text: `+${value}`,       color: '#4ade80' };
+    case 'spore_rot':     return { text: `🍄×${value}`,    color: '#a855f7' };
+    case 'regrowth':      return { text: `🌿+${value}`,    color: '#4ade80' };
+    case 'bark_shield':   return { text: `🪵+${value}`,    color: '#d97706' };
+    case 'bloom':         return { text: `🌸+${value}`,    color: '#f472b6' };
+    case 'verdant_surge': return { text: `💨+${value}`,    color: '#86efac' };
+    case 'thorns':        return { text: `🌵+${value}`,    color: '#86efac' };
+    case 'wither':        return { text: `💀×${value}`,    color: '#9ca3af' };
+    case 'root_chill':    return { text: `❄️×${value}`,    color: '#93c5fd' };
+    case 'entangle':      return { text: `🕸️×${value}`,   color: '#fbbf24' };
+    default:              return { text: `+${value}`,       color: '#c4e8c4' };
+  }
+}
+const CELL_SIZE = 68;
 const GAP = 2;
 const PADDING = 8;
 // Pixel offset from board top-left to the start of cell (x, y)
@@ -25,12 +55,15 @@ interface Props {
   plants: PlantInContainer[];
   onRemoveContainer: (id: bigint) => void;
   onRemovePlant: (id: bigint) => void;
+  onRotateContainer: (id: bigint) => void;
+  onRotatePlant: (id: bigint) => void;
   isDisabled: boolean;
   liftedPlantId: bigint | null;
   isCombatActive: boolean;
+  dragRotated?: boolean;
 }
 
-export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePlant, isDisabled, liftedPlantId, isCombatActive }: Props) {
+export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePlant, onRotateContainer, onRotatePlant, isDisabled, liftedPlantId, isCombatActive, dragRotated = false }: Props) {
   const { active, over } = useDndContext();
 
   const dragData = active?.data.current as DragData | undefined;
@@ -40,6 +73,10 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
     dragData?.kind === 'inventory-plant' || dragData?.kind === 'placed-plant';
   const dragDef: ContainerDef | null =
     isDraggingContainer ? (dragData as any).def : null;
+
+  const effectiveDef: ContainerDef | null = dragDef && dragRotated && dragDef.width !== dragDef.height
+    ? { ...dragDef, width: dragDef.height, height: dragDef.width }
+    : dragDef;
 
   const previewOrigin = (() => {
     if (!isDraggingContainer || !over) return null;
@@ -72,15 +109,15 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
   };
 
   const isPreviewCell = (x: number, y: number) => {
-    if (!previewOrigin || !dragDef) return false;
+    if (!previewOrigin || !effectiveDef) return false;
     return (
-      x >= previewOrigin.x && x < previewOrigin.x + dragDef.width &&
-      y >= previewOrigin.y && y < previewOrigin.y + dragDef.height
+      x >= previewOrigin.x && x < previewOrigin.x + effectiveDef.width &&
+      y >= previewOrigin.y && y < previewOrigin.y + effectiveDef.height
     );
   };
 
-  const isPreviewValid = previewOrigin && dragDef
-    ? wouldFit(dragDef, previewOrigin.x, previewOrigin.y)
+  const isPreviewValid = previewOrigin && effectiveDef
+    ? wouldFit(effectiveDef, previewOrigin.x, previewOrigin.y)
     : true;
 
   // Board cells covered by non-anchor cells of multi-cell plants (excluding lifted plant)
@@ -114,6 +151,11 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
           borderRadius: 12,
           border: '1px solid #2d4a2d',
           boxShadow: '0 0 40px #0a1a0a, inset 0 0 30px #0a150a',
+          // position+zIndex establishes a stacking context so the absolute
+          // preview overlay (z-index 50) reliably paints above container cells
+          // (z-index 2) without interacting with the CSS Grid track layout.
+          position: 'relative',
+          zIndex: 0,
         }}
       >
         {Array.from({ length: GRID_SIZE }, (_, y) =>
@@ -130,8 +172,6 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
                 allPlants={plants}
                 coveredBoardCells={coveredBoardCells}
                 occupiedByPlant={occupiedByPlant}
-                isPreview={isPreviewCell(x, y)}
-                isPreviewValid={!!isPreviewValid}
                 isDisabled={isDisabled}
                 isDraggingContainer={isDraggingContainer}
                 isDraggingAnyPlant={isDraggingAnyPlant}
@@ -139,18 +179,24 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
                 isCombatActive={isCombatActive}
                 onRemoveContainer={onRemoveContainer}
                 onRemovePlant={onRemovePlant}
+                onRotateContainer={onRotateContainer}
               />
             );
           })
         )}
 
-        {/* Preview highlight rendered as a grid item so it sits in the same
-            stacking context as containers and can reliably paint above them */}
-        {previewOrigin && dragDef && (
+        {/* Preview highlight: absolute inside grid div so it never affects
+            grid track layout. Bounds-checked so it doesn't overhang the board. */}
+        {previewOrigin && effectiveDef &&
+         previewOrigin.x + effectiveDef.width <= GRID_SIZE &&
+         previewOrigin.y + effectiveDef.height <= GRID_SIZE && (
           <div
             style={{
-              gridColumn: `${previewOrigin.x + 1} / span ${dragDef.width}`,
-              gridRow: `${previewOrigin.y + 1} / span ${dragDef.height}`,
+              position: 'absolute',
+              left: cellPx(previewOrigin.x),
+              top: cellPx(previewOrigin.y),
+              width: effectiveDef.width * CELL_SIZE + (effectiveDef.width - 1) * GAP,
+              height: effectiveDef.height * CELL_SIZE + (effectiveDef.height - 1) * GAP,
               zIndex: 50,
               background: isPreviewValid ? 'rgba(74,222,128,0.25)' : 'rgba(239,68,68,0.25)',
               border: `2px solid ${isPreviewValid ? '#4ade80' : '#ef4444'}`,
@@ -171,6 +217,7 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
           isDisabled={isDisabled}
           isCombatActive={isCombatActive}
           onRemovePlant={onRemovePlant}
+          onRotatePlant={onRotatePlant}
         />
       ))}
 
@@ -189,8 +236,8 @@ export function GardenBoard({ containers, plants, onRemoveContainer, onRemovePla
 
 function BoardCell({
   x, y, isInContainer, isOrigin, container, allPlants, coveredBoardCells, occupiedByPlant,
-  isPreview, isPreviewValid, isDisabled, isDraggingContainer, isDraggingAnyPlant,
-  liftedPlantId, isCombatActive, onRemoveContainer, onRemovePlant,
+  isDisabled, isDraggingContainer, isDraggingAnyPlant,
+  liftedPlantId, isCombatActive, onRemoveContainer, onRemovePlant, onRotateContainer,
 }: {
   x: number; y: number;
   isInContainer: boolean; isOrigin: boolean;
@@ -198,12 +245,12 @@ function BoardCell({
   allPlants: PlantInContainer[];
   coveredBoardCells: Set<string>;
   occupiedByPlant: Set<string>;
-  isPreview: boolean; isPreviewValid: boolean;
   isDisabled: boolean; isDraggingContainer: boolean; isDraggingAnyPlant: boolean;
   liftedPlantId: bigint | null;
   isCombatActive: boolean;
   onRemoveContainer: (id: bigint) => void;
   onRemovePlant: (id: bigint) => void;
+  onRotateContainer: (id: bigint) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `cell:${x}:${y}`,
@@ -211,21 +258,13 @@ function BoardCell({
     disabled: (isInContainer && !isDraggingContainer) || isDisabled || isDraggingAnyPlant,
   });
 
-  const showOver = isOver && isDraggingContainer && !isInContainer;
-
   return (
     <div
       ref={setNodeRef}
       style={{
         width: CELL_SIZE, height: CELL_SIZE,
-        background: isInContainer
-          ? 'transparent'
-          : isPreview
-            ? isPreviewValid ? 'rgba(74,222,128,0.18)' : 'rgba(239,68,68,0.18)'
-            : showOver ? 'rgba(74,222,128,0.1)' : '#1a2e1a',
-        border: isPreview
-          ? `2px solid ${isPreviewValid ? '#4ade80' : '#ef4444'}`
-          : isInContainer ? 'none' : `1px solid ${showOver ? '#4ade8066' : '#2a3d2a'}`,
+        background: isInContainer ? 'transparent' : '#1a2e1a',
+        border: isInContainer ? 'none' : '1px solid #2a3d2a',
         borderRadius: 4,
         cursor: isDisabled ? 'default' : isDraggingContainer && !isInContainer ? 'copy' : 'default',
         transition: 'background 0.1s, border 0.1s',
@@ -263,6 +302,7 @@ function BoardCell({
           isCombatActive={isCombatActive}
           onRemovePlant={onRemovePlant}
           onRemoveContainer={onRemoveContainer}
+          onRotateContainer={onRotateContainer}
         />
       )}
     </div>
@@ -271,7 +311,7 @@ function BoardCell({
 
 // ─── Container Content ────────────────────────────────────────────────────────
 
-function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByPlant, isDisabled, liftedPlantId, isCombatActive, onRemovePlant, onRemoveContainer }: {
+function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByPlant, isDisabled, liftedPlantId, isCombatActive, onRemovePlant, onRemoveContainer, onRotateContainer }: {
   container: ContainerOnBoard;
   allPlants: PlantInContainer[];
   coveredBoardCells: Set<string>;
@@ -281,6 +321,7 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
   isCombatActive: boolean;
   onRemovePlant: (id: bigint) => void;
   onRemoveContainer: (id: bigint) => void;
+  onRotateContainer: (id: bigint) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const def = CONTAINERS[container.containerType];
@@ -337,6 +378,7 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
         {...(isDisabled ? {} : listeners)}
         {...(isDisabled ? {} : attributes)}
         title={tooltipParts}
+        onContextMenu={e => { e.preventDefault(); if (!isDisabled) onRotateContainer(container.id); }}
         style={{
           height: 7,
           flexShrink: 0,
@@ -349,21 +391,34 @@ function ContainerContent({ container, allPlants, coveredBoardCells, occupiedByP
         }}
       />
 
-      {/* Remove button — visible only on hover */}
+      {/* Hover buttons — remove + rotate hint */}
       {!isDisabled && hovered && (
-        <button
-          onPointerDown={e => e.stopPropagation()}
-          onClick={e => { e.stopPropagation(); onRemoveContainer(container.id); }}
-          title="Stash container (returns all contents)"
-          style={{
-            position: 'absolute', top: 0, right: 0,
-            background: '#1a0505', border: '1px solid #ef444433',
-            borderRadius: '0 3px 0 4px',
-            color: '#ef4444bb', cursor: 'pointer',
-            fontSize: 8, lineHeight: 1, padding: '2px 4px',
-            zIndex: 10,
-          }}
-        >✕</button>
+        <>
+          {container.width !== container.height && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0,
+              background: '#050a1a99',
+              borderRadius: '3px 0 4px 0',
+              color: '#4ade8077',
+              fontSize: 7, lineHeight: 1, padding: '2px 4px',
+              zIndex: 10, pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}>right-click to rotate</div>
+          )}
+          <button
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onRemoveContainer(container.id); }}
+            title="Stash container (returns all contents)"
+            style={{
+              position: 'absolute', top: 0, right: 0,
+              background: '#1a0505', border: '1px solid #ef444433',
+              borderRadius: '0 3px 0 4px',
+              color: '#ef4444bb', cursor: 'pointer',
+              fontSize: 8, lineHeight: 1, padding: '2px 4px',
+              zIndex: 10,
+            }}
+          >✕</button>
+        </>
       )}
 
       {/* Drop-target slot grid — visual plants are rendered as board overlays */}
@@ -474,11 +529,12 @@ function PlantSlot({ boardX, boardY, isOccupied, isLifted, gridCol, gridRow, isD
 
 // ─── Plant Overlay (absolutely positioned on the board, draggable) ─────────────
 
-function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
+function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant, onRotatePlant }: {
   plant: PlantInContainer;
   isDisabled: boolean;
   isCombatActive: boolean;
   onRemovePlant: (id: bigint) => void;
+  onRotatePlant: (id: bigint) => void;
 }) {
   const { active } = useDndContext();
   const dragData = active?.data.current as DragData | undefined;
@@ -488,9 +544,11 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
   // Track whether a real drag happened so onClick doesn't mis-fire after a drag
   const didDragRef = useRef(false);
 
-  // Pop animation: imperatively re-trigger on each trigger fire
+  // Pop animation + floating numbers
   const popRef = useRef<HTMLDivElement>(null);
   const prevTriggerCount = useRef(plant.triggerCount);
+  const [floats, setFloats] = useState<FloatNum[]>([]);
+
   useEffect(() => {
     if (!isCombatActive) return;
     if (plant.triggerCount !== prevTriggerCount.current) {
@@ -500,6 +558,19 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
         el.style.animation = 'none';
         void el.offsetHeight; // force reflow
         el.style.animation = 'plant-pop 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards';
+      }
+
+      // Spawn floating numbers for primary + secondary effects
+      const nums: FloatNum[] = [];
+      const primary = effectDisplay(plant.primaryEffect, plant.primaryValue);
+      if (primary) nums.push({ id: ++_floatId, ...primary, x: 0 });
+      const secondary = effectDisplay(plant.secondaryEffect, plant.secondaryValue);
+      if (secondary) nums.push({ id: ++_floatId, ...secondary, x: nums.length ? 18 : 0 });
+
+      if (nums.length > 0) {
+        setFloats(prev => [...prev, ...nums]);
+        const ids = nums.map(n => n.id);
+        setTimeout(() => setFloats(prev => prev.filter(n => !ids.includes(n.id))), 1100);
       }
     }
   }, [plant.triggerCount, isCombatActive]);
@@ -540,6 +611,8 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
   const color = ELEMENT_COLORS[plant.element] ?? '#4ade80';
   const plantDef = PLANTS[plant.plantType];
   const hasImage = !!plantDef?.image;
+  // Detect if plant has been rotated from its default orientation
+  const isRotated = !!plantDef && plantDef.width !== plantDef.height && plant.plantWidth !== plantDef.width;
 
   const overlayDiv = (
     <div
@@ -561,6 +634,11 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
           if (!isDisabled && !didDragRef.current) onRemovePlant(plant.id);
           didDragRef.current = false;
         }}
+        onContextMenu={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!isDisabled && plant.plantWidth !== plant.plantHeight) onRotatePlant(plant.id);
+        }}
         style={{
           width: '100%', height: '100%',
           borderRadius: 4,
@@ -575,7 +653,23 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
       >
         {/* Plant image or emoji fallback */}
         {hasImage
-          ? <img src={plantDef!.image} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', display: 'block' }} draggable={false} />
+          ? (
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+              <img
+                src={plantDef!.image}
+                draggable={false}
+                style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  // If rotated: image natural dims are swapped vs the overlay box dims
+                  width: isRotated ? height : width,
+                  height: isRotated ? width : height,
+                  objectFit: 'contain',
+                  transform: `translate(-50%, -50%)${isRotated ? ' rotate(90deg)' : ''}`,
+                  pointerEvents: 'none', display: 'block',
+                }}
+              />
+            </div>
+          )
           : <>
               <span style={{ fontSize: W > 1 || H > 1 ? 18 : 14, pointerEvents: 'none' }}>{getPlantEmoji(plant.plantType)}</span>
               {(W > 1 || H > 1) && (
@@ -605,6 +699,30 @@ function PlantOverlay({ plant, isDisabled, isCombatActive, onRemovePlant }: {
           />
         )}
       </div>
+
+      {/* Floating combat numbers */}
+      {floats.map(f => (
+        <div
+          key={f.id}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 0,
+            transform: `translateX(calc(-50% + ${f.x}px))`,
+            pointerEvents: 'none',
+            zIndex: 30,
+            fontFamily: 'Cinzel, serif',
+            fontWeight: 700,
+            fontSize: 14,
+            color: f.color,
+            textShadow: `0 0 6px ${f.color}cc, 0 1px 2px #000c`,
+            whiteSpace: 'nowrap',
+            animation: 'float-number 1.05s ease-out forwards',
+          }}
+        >
+          {f.text}
+        </div>
+      ))}
     </div>
   );
 
