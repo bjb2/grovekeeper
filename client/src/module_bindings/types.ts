@@ -114,3 +114,39 @@ export const ShopOffer = __t.object("ShopOffer", {
   rarity: __t.string(), // "common" | "uncommon" | "rare" | "epic" | "legendary"
 });
 export type ShopOffer = __Infer<typeof ShopOffer>;
+
+export const EnemyContainerOnBoard = __t.object("EnemyContainerOnBoard", {
+  id: __t.u64(),
+  owner: __t.identity(),
+  containerType: __t.string(),
+  x: __t.i32(),
+  y: __t.i32(),
+  width: __t.i32(),
+  height: __t.i32(),
+  capacity: __t.i32(),
+  soilType: __t.string(),
+  affinity: __t.string(),
+});
+export type EnemyContainerOnBoard = __Infer<typeof EnemyContainerOnBoard>;
+
+export const EnemyPlantInCombat = __t.object("EnemyPlantInCombat", {
+  id: __t.u64(),
+  owner: __t.identity(),
+  plantType: __t.string(),
+  containerId: __t.u64(),
+  boardX: __t.i32(),
+  boardY: __t.i32(),
+  element: __t.string(),
+  cooldownMs: __t.u64(),
+  triggerType: __t.string(),
+  primaryEffect: __t.string(),
+  primaryValue: __t.i32(),
+  secondaryEffect: __t.string(),
+  secondaryValue: __t.i32(),
+  accuracy: __t.i32(),
+  critChance: __t.i32(),
+  triggerCount: __t.i32(),
+  plantWidth: __t.i32(),
+  plantHeight: __t.i32(),
+});
+export type EnemyPlantInCombat = __Infer<typeof EnemyPlantInCombat>;

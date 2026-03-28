@@ -9,6 +9,8 @@ import type {
   ShopOffer,
   Inventory,
   ActiveEffect,
+  EnemyContainerOnBoard,
+  EnemyPlantInCombat,
 } from '../module_bindings/types';
 
 const SPACETIME_HOST = import.meta.env.VITE_SPACETIME_HOST ?? 'wss://maincloud.spacetimedb.com';
@@ -25,6 +27,8 @@ export function useGrovekeeper() {
   const [shopOffers, setShopOffers] = useState<ShopOffer[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [activeEffects, setActiveEffects] = useState<ActiveEffect[]>([]);
+  const [enemyContainers, setEnemyContainers] = useState<EnemyContainerOnBoard[]>([]);
+  const [enemyPlants, setEnemyPlants] = useState<EnemyPlantInCombat[]>([]);
 
   const tokenKey = 'grovekeeper_token';
   const initialized = useRef(false);
@@ -51,6 +55,8 @@ export function useGrovekeeper() {
       onShopChange: (offers) => setShopOffers([...offers]),
       onInventoryChange: (items) => setInventory([...items]),
       onActiveEffectsChange: (effects) => setActiveEffects([...effects]),
+      onEnemyContainersChange: () => setEnemyContainers(client.myEnemyContainers()),
+      onEnemyPlantsChange: () => setEnemyPlants(client.myEnemyPlants()),
     };
 
     client.connect(SPACETIME_HOST, SPACETIME_MODULE, savedToken);
@@ -70,12 +76,20 @@ export function useGrovekeeper() {
     client.removeContainer(id);
   }, []);
 
+  const rotateContainer = useCallback((id: bigint) => {
+    client.rotateContainer(id);
+  }, []);
+
   const placePlant = useCallback((plantType: string, boardX: number, boardY: number) => {
     client.placePlant(plantType, boardX, boardY);
   }, []);
 
   const removePlant = useCallback((id: bigint) => {
     client.removePlant(id);
+  }, []);
+
+  const rotatePlant = useCallback((id: bigint) => {
+    client.rotatePlant(id);
   }, []);
 
   const placeFromInventory = useCallback((inventoryId: bigint, x: number, y: number) => {
@@ -100,7 +114,9 @@ export function useGrovekeeper() {
   return {
     connected, error, player,
     containers, plants, combat, combatLog, shopOffers, inventory, activeEffects,
-    placeContainer, moveContainer, removeContainer, placePlant, removePlant,
+    enemyContainers, enemyPlants,
+    placeContainer, moveContainer, removeContainer, rotateContainer,
+    placePlant, removePlant, rotatePlant,
     placeFromInventory, placePlantFromInventory, movePlant,
     startCombat, returnToGrove, rerollShop, buyItem, finishShopping, resetRun,
   };

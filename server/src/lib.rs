@@ -319,6 +319,43 @@ pub fn remove_plant(ctx: &ReducerContext, plant_id: u64) -> Result<(), String> {
 }
 
 #[reducer]
+pub fn rotate_container(ctx: &ReducerContext, container_id: u64) -> Result<(), String> {
+    let identity = ctx.sender;
+    let player = ctx.db.player().identity().find(&identity)
+        .ok_or("Player not found")?;
+    if player.phase != "build" {
+        return Err("Can only rotate during build phase".to_string());
+    }
+    let c = ctx.db.container_on_board().id().find(&container_id)
+        .ok_or("Container not found")?;
+    if c.owner != identity {
+        return Err("Not your container".to_string());
+    }
+    // Square containers don't need rotation
+    if c.width == c.height {
+        return Ok(());
+    }
+    let new_w = c.height;
+    let new_h = c.width;
+    // Bounds check after rotation
+    if c.x + new_w > 6 || c.y + new_h > 6 {
+        return Err("Rotated container would be out of bounds".to_string());
+    }
+    // Overlap check (exclude self)
+    for existing in ctx.db.container_on_board().owner().filter(&identity) {
+        if existing.id == container_id { continue; }
+        if c.x < existing.x + existing.width && c.x + new_w > existing.x
+            && c.y < existing.y + existing.height && c.y + new_h > existing.y {
+            return Err("Rotated container would overlap".to_string());
+        }
+    }
+    ctx.db.container_on_board().id().update(ContainerOnBoard {
+        width: new_w, height: new_h, ..c
+    });
+    Ok(())
+}
+
+#[reducer]
 pub fn start_combat(ctx: &ReducerContext) -> Result<(), String> {
     let identity = ctx.sender;
     let player = ctx.db.player().identity().find(&identity)

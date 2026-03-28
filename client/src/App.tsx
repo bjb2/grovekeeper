@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   DndContext, DragOverlay,
   PointerSensor, TouchSensor,
@@ -6,12 +6,15 @@ import {
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { useGrovekeeper } from './hooks/useGrovekeeper';
+import { useSound } from './hooks/useSound';
+import { useIsMobile } from './hooks/useIsMobile';
 import { GardenBoard } from './components/GardenBoard';
 import type { DragData } from './components/GardenBoard';
 import { StorageShelf } from './components/StorageShelf';
 import type { StashHandle } from './components/StorageShelf';
 import { CombatView } from './components/CombatView';
 import { ShopView } from './components/ShopView';
+import { EnemyBoard } from './components/EnemyBoard';
 import { PLANTS, CONTAINERS, ELEMENT_COLORS } from './game/data';
 import type { ActiveEffect } from './module_bindings/types';
 import './styles/global.css';
@@ -32,14 +35,27 @@ export default function App() {
   const {
     connected, error, player, containers, plants,
     combat, combatLog, shopOffers, inventory, activeEffects,
-    moveContainer, removeContainer, removePlant,
+    enemyContainers, enemyPlants,
+    moveContainer, removeContainer, rotateContainer, removePlant, rotatePlant,
     placeFromInventory, placePlantFromInventory, movePlant,
     startCombat, returnToGrove, rerollShop, buyItem, resetRun,
   } = useGrovekeeper();
 
+  const { setPhase, playSfx, toggleMusicMute, toggleSfxMute, musicMuted, sfxMuted } = useSound();
+  const isMobile = useIsMobile();
+
   const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
   const [liftedPlantId, setLiftedPlantId] = useState<bigint | null>(null);
+  const [dragRotated, setDragRotated] = useState(false);
+  const dragRotatedRef = useRef(false);
+  const dragActiveRef = useRef(false);
   const stashRef = useRef<StashHandle>(null);
+
+  // Prev-value refs for SFX triggers — null means "skip first render"
+  const prevLogLenRef = useRef<number | null>(null);
+  const prevCombatStatusRef = useRef<string | null>(null);
+  const prevInvLenRef = useRef<number | null>(null);
+  const prevContLenRef = useRef<number | null>(null);
 
   const phase = player?.phase ?? 'build';
   const isBuild = phase === 'build';
@@ -50,6 +66,69 @@ export default function App() {
 
   const playerEffects = activeEffects.filter(e => e.target === 'player');
 
+  // Sync phase to music
+  useEffect(() => {
+    if (player?.phase) setPhase(player.phase as 'build' | 'combat');
+  }, [player?.phase, setPhase]);
+
+  // Combat log SFX
+  useEffect(() => {
+    if (prevLogLenRef.current === null) { prevLogLenRef.current = combatLog.length; return; }
+    const prev = prevLogLenRef.current;
+    prevLogLenRef.current = combatLog.length;
+    if (combatLog.length <= prev) return;
+    const newEntries = combatLog.slice(prev);
+    newEntries.forEach((entry, i) => {
+      const delay = i * 0.07;
+      switch (entry.entryType) {
+        case 'player_attack': playSfx('plant_attack', delay); break;
+        case 'enemy_attack':  playSfx('enemy_attack', delay); break;
+        case 'heal':          playSfx('heal', delay); break;
+        case 'effect':        playSfx('effect', delay); break;
+      }
+    });
+  }, [combatLog.length, playSfx]);
+
+  // Victory / defeat SFX
+  useEffect(() => {
+    if (prevCombatStatusRef.current === null) { prevCombatStatusRef.current = combat?.status ?? null; return; }
+    const prev = prevCombatStatusRef.current;
+    const curr = combat?.status ?? null;
+    prevCombatStatusRef.current = curr;
+    if (curr === prev) return;
+    if (curr === 'victory') playSfx('victory');
+    if (curr === 'defeat')  playSfx('defeat');
+  }, [combat?.status, playSfx]);
+
+  // Buy SFX
+  useEffect(() => {
+    if (prevInvLenRef.current === null) { prevInvLenRef.current = inventory.length; return; }
+    const prev = prevInvLenRef.current;
+    prevInvLenRef.current = inventory.length;
+    if (inventory.length > prev) playSfx('buy');
+  }, [inventory.length, playSfx]);
+
+  // Place container SFX
+  useEffect(() => {
+    if (prevContLenRef.current === null) { prevContLenRef.current = containers.length; return; }
+    const prev = prevContLenRef.current;
+    prevContLenRef.current = containers.length;
+    if (containers.length > prev) playSfx('place');
+  }, [containers.length, playSfx]);
+
+  // R key to rotate during drag
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!dragActiveRef.current) return;
+      if (e.key === 'r' || e.key === 'R') {
+        dragRotatedRef.current = !dragRotatedRef.current;
+        setDragRotated(dragRotatedRef.current);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -58,12 +137,16 @@ export default function App() {
   function handleDragStart(event: DragStartEvent) {
     const data = event.active.data.current as DragData;
     setActiveDrag(data);
+    dragActiveRef.current = true;
+    dragRotatedRef.current = false;
+    setDragRotated(false);
     if (data?.kind === 'placed-plant') setLiftedPlantId(data.plantId);
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveDrag(null);
     setLiftedPlantId(null);
+    dragActiveRef.current = false;
     if (!isBuild) return;
 
     const data = event.active.data.current as DragData | undefined;
@@ -80,10 +163,8 @@ export default function App() {
           movePlant(data.plantId, boardX, boardY);
           return;
         }
-        // Dropped back on own slot — no-op (onClick handles click-to-stash)
         return;
       }
-      // Dropped on stash, empty cell, or nowhere — send to stash
       removePlant(data.plantId);
       return;
     }
@@ -124,6 +205,7 @@ export default function App() {
   function handleDragCancel() {
     setActiveDrag(null);
     setLiftedPlantId(null);
+    dragActiveRef.current = false;
   }
 
   return (
@@ -137,41 +219,48 @@ export default function App() {
     }}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '8px 20px',
+        display: 'flex', alignItems: 'center',
+        gap: isMobile ? 8 : 16,
+        padding: isMobile ? '6px 10px' : '8px 20px',
         background: '#070f07',
         borderBottom: '1px solid #1a2e1a',
         boxShadow: '0 2px 12px #00000088',
         flexShrink: 0,
         minWidth: 0,
+        flexWrap: isMobile ? 'wrap' : 'nowrap',
       }}>
         {/* Logo */}
         <div style={{ flexShrink: 0 }}>
-          <div style={{ fontFamily: 'Cinzel', color: '#4ade80', fontSize: 16, letterSpacing: 3 }}>
-            🌿 GROVEKEEPER
+          <div style={{ fontFamily: 'Cinzel', color: '#4ade80', fontSize: isMobile ? 13 : 16, letterSpacing: isMobile ? 1 : 3 }}>
+            🌿 {isMobile ? 'GK' : 'GROVEKEEPER'}
           </div>
         </div>
 
         {player && (
           <>
-            <div style={{ width: 1, height: 32, background: '#1a2e1a', flexShrink: 0 }} />
+            {!isMobile && <div style={{ width: 1, height: 32, background: '#1a2e1a', flexShrink: 0 }} />}
 
             {/* HP bar */}
-            <div style={{ flexShrink: 0, width: 140 }}>
-              <div style={{ fontSize: 9, color: '#4a6a4a', fontFamily: 'Cinzel', letterSpacing: 1, marginBottom: 3 }}>
-                GROVE HP
-              </div>
+            <div style={{ flexShrink: 0, width: isMobile ? 90 : 140 }}>
+              {!isMobile && (
+                <div style={{ fontSize: 9, color: '#4a6a4a', fontFamily: 'Cinzel', letterSpacing: 1, marginBottom: 3 }}>
+                  GROVE HP
+                </div>
+              )}
               <HpBar current={player.hp} max={player.maxHp} />
             </div>
 
             {/* Stats */}
-            <div style={{ display: 'flex', gap: 14, flexShrink: 0, fontSize: 12 }}>
-              <span style={{ color: '#4a6a4a' }}>Round <span style={{ color: '#86efac' }}>{player.round}</span></span>
+            <div style={{ display: 'flex', gap: isMobile ? 8 : 14, flexShrink: 0, fontSize: isMobile ? 11 : 12 }}>
+              <span style={{ color: '#4a6a4a' }}>
+                {isMobile ? 'R' : 'Round '}
+                <span style={{ color: '#86efac' }}>{player.round}</span>
+              </span>
               <span style={{ color: '#fbbf24', fontFamily: 'Cinzel' }}>💛 {player.currency}</span>
             </div>
 
-            {/* Active player effects — shown throughout combat */}
-            {playerEffects.length > 0 && (
+            {/* Active player effects — hidden on mobile (shown in CombatView) */}
+            {!isMobile && playerEffects.length > 0 && (
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                 {playerEffects.map(e => (
                   <EffectBadge key={e.effect} effect={e} />
@@ -184,9 +273,31 @@ export default function App() {
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
+        {/* Audio controls */}
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          <button
+            onClick={toggleMusicMute}
+            title={musicMuted ? 'Unmute music' : 'Mute music'}
+            style={{
+              background: 'none', border: '1px solid #1a2e1a', borderRadius: 6,
+              color: '#4ade80', cursor: 'pointer', fontSize: 14, padding: '3px 7px',
+              opacity: musicMuted ? 0.3 : 0.85,
+            }}
+          >🎵</button>
+          <button
+            onClick={toggleSfxMute}
+            title={sfxMuted ? 'Unmute SFX' : 'Mute SFX'}
+            style={{
+              background: 'none', border: '1px solid #1a2e1a', borderRadius: 6,
+              color: '#4ade80', cursor: 'pointer', fontSize: 14, padding: '3px 7px',
+              opacity: sfxMuted ? 0.3 : 0.85,
+            }}
+          >🔔</button>
+        </div>
+
         {/* Phase + Action */}
         {player && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0 }}>
             {isBuild && (
               <button
                 onClick={startCombat}
@@ -194,13 +305,13 @@ export default function App() {
                   background: 'linear-gradient(135deg, #1a4a2a, #2d6b3a)',
                   border: '1px solid #4ade80',
                   borderRadius: 8, color: '#4ade80',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1, boxShadow: '0 0 10px #4ade8033',
                   whiteSpace: 'nowrap',
                 }}
               >
-                ⚔️ Begin Encounter
+                ⚔️ {isMobile ? 'Fight' : 'Begin Encounter'}
               </button>
             )}
             {combatVictory && (
@@ -210,14 +321,14 @@ export default function App() {
                   background: 'linear-gradient(135deg, #1a4a2a, #2d6b3a)',
                   border: '1px solid #4ade80',
                   borderRadius: 8, color: '#4ade80',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1, boxShadow: '0 0 10px #4ade8033',
                   whiteSpace: 'nowrap',
                   animation: 'pulse 1.5s infinite',
                 }}
               >
-                🌿 Return to Grove
+                🌿 {isMobile ? 'Grove' : 'Return to Grove'}
               </button>
             )}
             {combatDefeat && (
@@ -227,19 +338,19 @@ export default function App() {
                   background: 'linear-gradient(135deg, #4a1a1a, #6b2d2d)',
                   border: '1px solid #f87171',
                   borderRadius: 8, color: '#f87171',
-                  fontFamily: 'Cinzel', fontSize: 12,
-                  padding: '7px 16px', cursor: 'pointer',
+                  fontFamily: 'Cinzel', fontSize: isMobile ? 10 : 12,
+                  padding: isMobile ? '5px 10px' : '7px 16px', cursor: 'pointer',
                   letterSpacing: 1,
                 }}
               >
-                🌱 New Run
+                🌱 {isMobile ? 'Retry' : 'New Run'}
               </button>
             )}
             <div style={{
               background: isBuild ? '#0f2a0f' : '#2a1a0a',
               border: `1px solid ${isBuild ? '#2d4a2d' : '#6b3a0a'}`,
-              borderRadius: 20, padding: '4px 12px',
-              fontFamily: 'Cinzel', fontSize: 11,
+              borderRadius: 20, padding: isMobile ? '3px 8px' : '4px 12px',
+              fontFamily: 'Cinzel', fontSize: isMobile ? 9 : 11,
               color: isBuild ? '#4ade80' : '#f97316',
               letterSpacing: 1,
             }}>
@@ -248,7 +359,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Connection */}
+        {/* Connection dot */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
           <span style={{
             width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
@@ -284,38 +395,61 @@ export default function App() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{
+            flex: 1, display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            minHeight: 0,
+            overflow: isMobile ? 'auto' : 'hidden',
+            WebkitOverflowScrolling: 'touch',
+          }}>
 
-            {/* Center: Board (scrollable) + Stash (always visible) */}
+            {/* Center: Boards + Stash */}
             <main style={{
-              flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
+              flex: isMobile ? 'none' : 1,
+              display: 'flex', flexDirection: 'column',
+              minHeight: 0, minWidth: 0,
             }}>
               <div style={{
-                flex: 1, overflowY: 'auto',
+                flex: isMobile ? 'none' : 1,
+                overflowX: 'auto',
+                overflowY: isMobile ? 'hidden' : 'auto',
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '16px 16px 8px',
+                padding: isMobile ? '10px 8px 6px' : '16px 16px 8px',
               }}>
+                {isCombat && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontFamily: 'Cinzel', fontSize: 11, color: '#6b3a0a', letterSpacing: 1, marginBottom: 6, textAlign: 'center' }}>
+                      ⚔️ ENEMY GROVE
+                    </div>
+                    <EnemyBoard containers={enemyContainers} plants={enemyPlants} combat={combat} />
+                  </div>
+                )}
                 <GardenBoard
                   containers={containers}
                   plants={plants}
                   onRemoveContainer={removeContainer}
                   onRemovePlant={removePlant}
+                  onRotateContainer={rotateContainer}
+                  onRotatePlant={rotatePlant}
                   isDisabled={!isBuild}
                   liftedPlantId={liftedPlantId}
                   isCombatActive={isCombat}
+                  dragRotated={dragRotated}
                 />
               </div>
-              <div style={{ flexShrink: 0, width: '100%' }}>
+              <div style={{ flexShrink: 0, width: '100%', overflowX: 'auto' }}>
                 <StorageShelf ref={stashRef} inventory={inventory} isDisabled={!isBuild} />
               </div>
             </main>
 
-            {/* Right: Shop or Combat */}
+            {/* Right (desktop) / Below (mobile): Shop or Combat */}
             <aside style={{
-              width: 360, flexShrink: 0,
-              padding: '14px 16px',
-              borderLeft: '1px solid #1a2e1a',
-              overflowY: 'auto',
+              width: isMobile ? '100%' : 360,
+              flexShrink: 0,
+              padding: isMobile ? '10px 10px 20px' : '14px 16px',
+              borderLeft: isMobile ? 'none' : '1px solid #1a2e1a',
+              borderTop: isMobile ? '1px solid #1a2e1a' : 'none',
+              overflowY: isMobile ? 'visible' : 'auto',
               background: '#060e06',
             }}>
               {isCombat && combat && (
@@ -328,7 +462,7 @@ export default function App() {
           </div>
 
           <DragOverlay dropAnimation={null}>
-            {activeDrag && <DragGhost data={activeDrag} />}
+            {activeDrag && <DragGhost data={activeDrag} rotated={dragRotated} />}
           </DragOverlay>
         </DndContext>
       )}
@@ -382,11 +516,14 @@ function HpBar({ current, max }: { current: number; max: number }) {
 
 // ─── Drag Ghost ───────────────────────────────────────────────────────────────
 
-const GHOST_CELL = 58; // px per grid cell in the drag ghost
+const GHOST_CELL = 58;
 
-function DragGhost({ data }: { data: DragData }) {
+function DragGhost({ data, rotated }: { data: DragData; rotated: boolean }) {
   if (data.kind === 'inventory-container' || data.kind === 'placed-container') {
-    const def = data.def;
+    const rawDef = data.def;
+    const def = rotated && rawDef.width !== rawDef.height
+      ? { ...rawDef, width: rawDef.height, height: rawDef.width }
+      : rawDef;
     if (def.image) {
       return (
         <img

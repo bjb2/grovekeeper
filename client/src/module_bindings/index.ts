@@ -44,6 +44,8 @@ import PlacePlantReducer from "./place_plant_reducer";
 import PlacePlantFromInventoryReducer from "./place_plant_from_inventory_reducer";
 import RemoveContainerReducer from "./remove_container_reducer";
 import RemovePlantReducer from "./remove_plant_reducer";
+import RotateContainerReducer from "./rotate_container_reducer";
+import RotatePlantReducer from "./rotate_plant_reducer";
 import RerollShopReducer from "./reroll_shop_reducer";
 import ResetRunReducer from "./reset_run_reducer";
 import ReturnToGroveReducer from "./return_to_grove_reducer";
@@ -58,6 +60,8 @@ import InventoryRow from "./inventory_table";
 import PlantInContainerRow from "./plant_in_container_table";
 import PlayerRow from "./player_table";
 import ShopOfferRow from "./shop_offer_table";
+import EnemyContainerOnBoardRow from "./enemy_container_on_board_table";
+import EnemyPlantInCombatRow from "./enemy_plant_in_combat_table";
 
 const tablesSchema = __schema({
   active_effect: __table({
@@ -139,6 +143,26 @@ const tablesSchema = __schema({
       { name: 'shop_offer_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, ShopOfferRow),
+  enemy_container_on_board: __table({
+    name: 'enemy_container_on_board',
+    indexes: [
+      { accessor: 'id', name: 'enemy_container_on_board_id_idx_btree', algorithm: 'btree', columns: ['id'] },
+      { accessor: 'owner', name: 'enemy_container_on_board_owner_idx_btree', algorithm: 'btree', columns: ['owner'] },
+    ],
+    constraints: [
+      { name: 'enemy_container_on_board_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, EnemyContainerOnBoardRow),
+  enemy_plant_in_combat: __table({
+    name: 'enemy_plant_in_combat',
+    indexes: [
+      { accessor: 'id', name: 'enemy_plant_in_combat_id_idx_btree', algorithm: 'btree', columns: ['id'] },
+      { accessor: 'owner', name: 'enemy_plant_in_combat_owner_idx_btree', algorithm: 'btree', columns: ['owner'] },
+    ],
+    constraints: [
+      { name: 'enemy_plant_in_combat_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, EnemyPlantInCombatRow),
 });
 
 const reducersSchema = __reducers(
@@ -152,6 +176,8 @@ const reducersSchema = __reducers(
   __reducerSchema("place_plant_from_inventory", PlacePlantFromInventoryReducer),
   __reducerSchema("remove_container", RemoveContainerReducer),
   __reducerSchema("remove_plant", RemovePlantReducer),
+  __reducerSchema("rotate_container", RotateContainerReducer),
+  __reducerSchema("rotate_plant", RotatePlantReducer),
   __reducerSchema("reroll_shop", RerollShopReducer),
   __reducerSchema("reset_run", ResetRunReducer),
   __reducerSchema("return_to_grove", ReturnToGroveReducer),

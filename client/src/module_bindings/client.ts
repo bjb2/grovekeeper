@@ -9,10 +9,12 @@ import type {
   ShopOffer,
   Inventory,
   ActiveEffect,
+  EnemyContainerOnBoard,
+  EnemyPlantInCombat,
 } from './types';
 
 // Re-export row types so consumers can import from here
-export type { Player, ContainerOnBoard, PlantInContainer, CombatState, CombatLogEntry, ShopOffer, Inventory, ActiveEffect };
+export type { Player, ContainerOnBoard, PlantInContainer, CombatState, CombatLogEntry, ShopOffer, Inventory, ActiveEffect, EnemyContainerOnBoard, EnemyPlantInCombat };
 
 // ─── CONVENIENCE CLIENT ───────────────────────────────────────────────────────
 // Lives here (not in index.ts) so `npm run generate` doesn't overwrite it.
@@ -32,6 +34,8 @@ export type TableCallbacks = {
   onShopChange?: (offers: ShopOffer[]) => void;
   onInventoryChange?: (items: Inventory[]) => void;
   onActiveEffectsChange?: (effects: ActiveEffect[]) => void;
+  onEnemyContainersChange?: () => void;
+  onEnemyPlantsChange?: () => void;
 };
 
 export class GroveKeeperClient {
@@ -61,6 +65,8 @@ export class GroveKeeperClient {
             'SELECT * FROM shop_offer',
             'SELECT * FROM inventory',
             'SELECT * FROM active_effect',
+            'SELECT * FROM enemy_container_on_board',
+            'SELECT * FROM enemy_plant_in_combat',
           ]);
       })
       .onDisconnect((_ctx, err) => {
@@ -109,6 +115,14 @@ export class GroveKeeperClient {
     conn.db.active_effect.onInsert(() => this.callbacks.onActiveEffectsChange?.(this.myActiveEffects()));
     conn.db.active_effect.onUpdate(() => this.callbacks.onActiveEffectsChange?.(this.myActiveEffects()));
     conn.db.active_effect.onDelete(() => this.callbacks.onActiveEffectsChange?.(this.myActiveEffects()));
+
+    conn.db.enemy_container_on_board.onInsert(() => this.callbacks.onEnemyContainersChange?.());
+    conn.db.enemy_container_on_board.onUpdate(() => this.callbacks.onEnemyContainersChange?.());
+    conn.db.enemy_container_on_board.onDelete(() => this.callbacks.onEnemyContainersChange?.());
+
+    conn.db.enemy_plant_in_combat.onInsert(() => this.callbacks.onEnemyPlantsChange?.());
+    conn.db.enemy_plant_in_combat.onUpdate(() => this.callbacks.onEnemyPlantsChange?.());
+    conn.db.enemy_plant_in_combat.onDelete(() => this.callbacks.onEnemyPlantsChange?.());
   }
 
   private _fireAllCallbacks() {
@@ -121,6 +135,8 @@ export class GroveKeeperClient {
     this.callbacks.onShopChange?.(this.myShopOffers());
     this.callbacks.onInventoryChange?.(this.myInventory());
     this.callbacks.onActiveEffectsChange?.(this.myActiveEffects());
+    this.callbacks.onEnemyContainersChange?.();
+    this.callbacks.onEnemyPlantsChange?.();
   }
 
   getIdentity() { return this._identity; }
@@ -175,6 +191,18 @@ export class GroveKeeperClient {
     return [...this.conn.db.active_effect.iter()].filter(e => e.owner.toHexString() === hex);
   }
 
+  myEnemyContainers(): EnemyContainerOnBoard[] {
+    const hex = this._identity?.toHexString();
+    if (!hex || !this.conn) return [];
+    return [...this.conn.db.enemy_container_on_board.iter()].filter(c => c.owner.toHexString() === hex);
+  }
+
+  myEnemyPlants(): EnemyPlantInCombat[] {
+    const hex = this._identity?.toHexString();
+    if (!hex || !this.conn) return [];
+    return [...this.conn.db.enemy_plant_in_combat.iter()].filter(p => p.owner.toHexString() === hex);
+  }
+
   // Reducers
   placeContainer(containerType: string, x: number, y: number) {
     this.conn?.reducers.placeContainer({ containerType, x, y });
@@ -203,6 +231,14 @@ export class GroveKeeperClient {
   movePlant(plantId: bigint, boardX: number, boardY: number) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (this.conn?.reducers as any)?.movePlant({ plantId, boardX, boardY });
+  }
+  rotateContainer(containerId: bigint) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.conn?.reducers as any)?.rotateContainer({ containerId });
+  }
+  rotatePlant(plantId: bigint) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.conn?.reducers as any)?.rotatePlant({ plantId });
   }
   startCombat() { this.conn?.reducers.startCombat({}); }
   returnToGrove() { this.conn?.reducers.returnToGrove({}); }
